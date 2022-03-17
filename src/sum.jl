@@ -10,6 +10,15 @@ Base.show(io::IO, op::OperatorSum) = print(io, op.left, " + ", op.right)
 Base.:+(left::AbstractOperator, right::AbstractOperator) = OperatorSum(left, right)
 
 starting_address(op::OperatorSum) = starting_address(op.left)
+LOStructure(op::OperatorSum) = combine_structure(LOStructure(op.left), LOStructure(op.right))
+combine_structure(::IsHermitian, ::IsHermitian) = IsHermitian()
+combine_structure(::AdjointKnown, ::IsHermitian) = AdjointKnown()
+combine_structure(::IsHermitian, ::AdjointKnown) = AdjointKnown()
+combine_structure(::AdjointKnown, ::AdjointKnown) = AdjointKnown()
+combine_structure(_, _) = AdjointUnknown()
+
+Base.adjoint(op::OperatorSum) = adjoint(op.left) + adjoint(op.right)
+
 
 struct OperatorSumColumn{
     A,T,L<:AbstractColumn{A,T},R<:AbstractColumn{A,T}

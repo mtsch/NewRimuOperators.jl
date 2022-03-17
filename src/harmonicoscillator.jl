@@ -20,3 +20,4 @@ function diagonal_element(op::HarmonicOscillatorMom, add, map)
 end
 
 CompositeAction(::HarmonicOscillatorMom) = NoCompositeAction()
+LOStructure(::HarmonicOscillatorMom) = IsHermitian()

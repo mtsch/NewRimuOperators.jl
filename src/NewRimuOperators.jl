@@ -12,7 +12,7 @@ using Rimu.Hamiltonians: momentum_space_harmonic_potential
 using Rimu.Hamiltonians: AbstractOffdiagonals
 using Rimu.BitStringAddresses: update_component
 # These will be extended
-import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address
+import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address, LOStructure
 
 export ConstFunction
 export column

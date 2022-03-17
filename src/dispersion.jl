@@ -36,3 +36,4 @@ function diagonal_element(op::KineticEnergy, _, map)
 end
 
 CompositeAction(::KineticEnergy) = NoCompositeAction()
+LOStructure(::KineticEnergy) = IsHermitian() # should be IsDiagonal?
