@@ -29,3 +29,14 @@ eigen(Matrix(Hc)).values[1]
 typeof(column(Hc, add))
 # NewRimuOperators.OperatorSumColumn{CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, NewRimuOperators.OperatorSumColumn{CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, NewRimuOperators.CompositeColumn{3, CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, KineticEnergy{CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, 4}, Tuple{OccupiedModeMap{1, FermiFSIndex}, OccupiedModeMap{2, BoseFSIndex}, OccupiedModeMap{1, FermiFSIndex}}}, NewRimuOperators.CompositeColumn{3, CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, MomentumTransfer{CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, ConstFunction{Float64}}, Tuple{OccupiedModeMap{1, FermiFSIndex}, OccupiedModeMap{2, BoseFSIndex}, OccupiedModeMap{1, FermiFSIndex}}}}, NewRimuOperators.CompositeColumn{3, CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, Float64, HarmonicOscillatorMom{CompositeFS{3, 4, 4, Tuple{FermiFS{1, 4, BitString{4, 1, UInt8}}, BoseFS{2, 4, BitString{5, 1, UInt8}}, FermiFS{1, 4, BitString{4, 1, UInt8}}}}, 4}, Tuple{OccupiedModeMap{1, FermiFSIndex}, OccupiedModeMap{2, BoseFSIndex}, OccupiedModeMap{1, FermiFSIndex}}}}
 # Yikes
+
+# Some benchmarks
+using BenchmarkTools
+
+add = BoseFS((0,0,0,0,10,0,0,0,0,0))
+H1 = HubbardMom1D(add)
+H2 = HubbardMom(add)
+
+s_strat = DoubleLogUpdate(targetwalkers=10000)
+@benchmark lomc!(H1; style=IsDynamicSemistochastic(), s_strat, laststep=10_000)
+@benchmark lomc!(H2; style=IsDynamicSemistochastic(), s_strat, laststep=10_000)
