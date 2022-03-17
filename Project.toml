@@ -1,0 +1,8 @@
+name = "NewRimuOperators"
+uuid = "c1c6a93e-7e6f-423d-aadc-a99f1ba36143"
+authors = ["mtsch <matijacufar@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+Rimu = "c53c40cc-bd84-11e9-2cf4-a9fde2b9386e"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
