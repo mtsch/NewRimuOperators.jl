@@ -4,5 +4,13 @@ authors = ["mtsch <matijacufar@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Rimu = "c53c40cc-bd84-11e9-2cf4-a9fde2b9386e"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[extras]
+Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Arpack", "Test"]

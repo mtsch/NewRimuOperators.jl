@@ -1,4 +1,5 @@
 using Test
+using Arpack
 using Rimu
 using LinearAlgebra
 using NewRimuOperators
@@ -50,6 +51,22 @@ end
 
         @test sorted_sparse(ham_new) ≈ sorted_sparse(ham_rimu)
     end
+    @testset "HubbardReal1DEP" begin
+        add = BoseFS((1,1,1,1,1,1))
+
+        ham_rimu = HubbardReal1DEP(add; u=0.7, t=1.3, v_ho=0.7)
+        ham_new = HubbardReal(add; u=0.7, t=1.3) + HarmonicOscillatorReal(add, 0.7)
+
+        @test sorted_sparse(ham_new) ≈ sorted_sparse(ham_rimu)
+    end
+    @testset "HubbardReal1DEP" begin
+        add = FermiFS2C((0,1,1,1,0), (0,1,1,0,0))
+
+        ham_rimu = HubbardRealSpace(add)
+        ham_new = HubbardReal(add)
+
+        @test sorted_sparse(ham_new) ≈ sorted_sparse(ham_rimu)
+    end
     @testset "Three components" begin
         add1 = BoseFS((0,0,4,0,0))
         add2 = CompositeFS(
@@ -63,8 +80,21 @@ end
 
         @test eigen(Matrix(ham_new)).values[1] ≈ eigen(Matrix(ham_rimu)).values[1]
     end
+    @testset "More" begin
+        add = CompositeFS(
+            FermiFS((0,1,0,1,0)),
+            BoseFS((0,0,2,0,0)),
+            FermiFS((0,1,0,1,0)),
+            BoseFS((0,0,2,0,0))
+        )
 
-    @test "Transcorrelated - no 3-body" begin
+        ham_re = HubbardRealSpace(add)
+        ham_mo = HubbardMom(add)
+
+        @test eigs(sparse(ham_re; sizelim=1e6); which=:SR)[1][1] ≈
+            eigs(sparse(ham_mo; sizelim=1e6); which=:SR)[1][1]
+    end
+    @test "Transcorrelated no 3-body" begin
         add = FermiFS2C((0,0,1,1,1,0,0), (0,0,1,0,1,0,0))
 
         ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=false, v_ho=0.1)
@@ -72,7 +102,7 @@ end
 
         @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
     end
-    @test "Transcorrelated - with 3-body" begin
+    @test "Transcorrelated with 3-body" begin
         add = FermiFS2C((0,0,0,1,1,0,0), (1,0,1,0,1,0,0))
 
         ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=true)

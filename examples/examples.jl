@@ -40,3 +40,21 @@ H2 = HubbardMom(add)
 s_strat = DoubleLogUpdate(targetwalkers=10000)
 @benchmark lomc!(H1; style=IsDynamicSemistochastic(), s_strat, laststep=10_000)
 @benchmark lomc!(H2; style=IsDynamicSemistochastic(), s_strat, laststep=10_000)
+
+add1 = BoseFS((0,0,4,0,0,0))
+add2 = CompositeFS(
+    BoseFS((0,0,2,0,0,0)),
+    BoseFS((0,0,2,0,0,0)),
+    FermiFS((0,0,1,0,0,0)),
+    FermiFS((0,0,1,0,0,0)),
+)
+
+ham_rimu = HubbardMom1D(add1; dispersion=continuum_dispersion)
+ham_new = HubbardMom(add2; dispersion=continuum_dispersion)
+
+s_strat = DoubleLogUpdate(targetwalkers=100000)
+laststep = 10000
+style = IsDynamicSemistochastic()
+
+@benchmark lomc!(ham_rimu; style, s_strat, laststep)
+@benchmark lomc!(ham_new; style, s_strat, laststep) # <- slower

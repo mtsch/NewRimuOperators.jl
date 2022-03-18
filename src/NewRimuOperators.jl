@@ -16,16 +16,19 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 
 export ConstFunction
 export column
-export KineticEnergy, MomentumTransfer, HarmonicOscillatorMom, HubbardMom, Transcorrelated
+export HarmonicOscillatorMom, HarmonicOscillatorReal, HubbardMom, Transcorrelated, HubbardReal
 
 include("abstract.jl")
 include("column.jl")
-
 include("sum.jl")
+
 include("momentumtransfer.jl")
 include("threebody.jl")
 include("dispersion.jl")
 include("harmonicoscillator.jl")
+
+include("onsiteinteraction.jl")
+include("realspacehop.jl")
 
 # Below are some examples on how one would go about writing a Hamiltonian:
 function HubbardMom(address; t=1, u=1, v_ho=0, dispersion=hubbard_dispersion)
@@ -37,7 +40,10 @@ function HubbardMom(address; t=1, u=1, v_ho=0, dispersion=hubbard_dispersion)
     return op
 end
 
-# Ignore below, not implemented.
+function HubbardReal(address; u=1.0, t=1.0)
+    return OnsiteInteraction(address, u) + RealSpaceHop(address, t)
+end
+
 using Rimu.Hamiltonians: n_to_k, correlation_factor
 
 struct WFunction{M}
