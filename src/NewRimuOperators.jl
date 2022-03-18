@@ -28,9 +28,9 @@ include("dispersion.jl")
 include("harmonicoscillator.jl")
 
 # Below are some examples on how one would go about writing a Hamiltonian:
-function HubbardMom(address; t=1, u=1, v_ho=0)
+function HubbardMom(address; t=1, u=1, v_ho=0, dispersion=hubbard_dispersion)
     M = num_modes(address)
-    op = KineticEnergy(address, t) + MomentumTransfer(address, u/2M)
+    op = KineticEnergy(address, t; dispersion) + MomentumTransfer(address, u/M)
     if v_ho ≠ 0
         op += HarmonicOscillatorMom(address, v_ho)
     end

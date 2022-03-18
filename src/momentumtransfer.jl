@@ -43,7 +43,7 @@ function get_offdiagonal(op::MomentumTransfer, bs::BoseFS, map, i)
     else
         conj(op.fun(p - k, q + k, k)) * val
     end
-    return new_add, val
+    return new_add, val/2
 end
 function diagonal_element(op::MomentumTransfer, bs::BoseFS, map)
     onproduct_zero = 0.0
@@ -59,7 +59,7 @@ function diagonal_element(op::MomentumTransfer, bs::BoseFS, map)
             onproduct_nonzero += op.fun(p, q, k) * 4 * occ_i * occ_j
         end
     end
-    return onproduct_zero + onproduct_nonzero
+    return (onproduct_zero + onproduct_nonzero) / 2
 end
 
 # Single fermionic component has no contributions.
