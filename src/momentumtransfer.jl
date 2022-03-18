@@ -38,7 +38,11 @@ function num_offdiagonals(::MomentumTransfer, bs::BoseFS, map)
 end
 function get_offdiagonal(op::MomentumTransfer, bs::BoseFS, map, i)
     new_add, val, p, q, k = momentum_transfer_excitation(bs, i, map; fold=op.fold)
-    val = !op.isadjoint ? op.fun(p, q, k) * val : conj(op.fun(q, p, -k)) * val
+    val = if !op.isadjoint
+        op.fun(p, q, k) * val
+    else
+        conj(op.fun(p - k, q + k, k)) * val
+    end
     return new_add, val
 end
 function diagonal_element(op::MomentumTransfer, bs::BoseFS, map)
@@ -74,7 +78,7 @@ function get_offdiagonal(op::MomentumTransfer, add_a, add_b, map_a, map_b, i)
     val = if !op.isadjoint
         op.fun(p, q, k) * val
     else
-        conj(op.fun(q, p, -k)) * val
+        conj(op.fun(p - k, q + k, -k)) * val
     end
     return new_add_a, new_add_b, val
 end
