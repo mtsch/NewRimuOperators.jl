@@ -606,9 +606,9 @@ version = "1.3.0"
 
 [[deps.Rimu]]
 deps = ["Arrow", "BSON", "ConsoleProgressMonitor", "DataFrames", "DataStructures", "Distributed", "Distributions", "FFTW", "LinearAlgebra", "Logging", "MPI", "MacroTools", "Measurements", "MonteCarloMeasurements", "OrderedCollections", "Parameters", "ProgressLogging", "Random", "RandomNumbers", "Reexport", "Setfield", "SparseArrays", "SpecialFunctions", "SplittablesBase", "StaticArrays", "Statistics", "StatsBase", "StrFormat", "StrLiterals", "TerminalLoggers", "ThreadsX"]
-git-tree-sha1 = "eb0c4155a1570c33d80a3ff8cbd6e5d03f95b78f"
+path = "/home/matija/package/Rimu.jl/"
 uuid = "c53c40cc-bd84-11e9-2cf4-a9fde2b9386e"
-version = "0.6.1"
+version = "0.6.1-dev"
 
 [[deps.Rmath]]
 deps = ["Random", "Rmath_jll"]

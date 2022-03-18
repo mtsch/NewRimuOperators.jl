@@ -37,36 +37,40 @@ function HubbardMom(address; t=1, u=1, v_ho=0)
 end
 
 # Ignore below, not implemented.
+using Rimu.Hamiltonians: n_to_k, correlation_factor
+
 struct WFunction{M}
     values::NTuple{M,Float64}
 end
-function WFunction(m, cutoff)
+function WFunction(M, cutoff)
     return WFunction(Tuple(Rimu.Hamiltonians.w_function.(0:M-1, cutoff)))
 end
 (w::WFunction)(n) = w.values[abs(n) + 1]
 
 struct TFunction{M}
     w::WFunction{M}
+    cutoff::Int
     t::Float64
     v::Float64
 end
-function TFunction(m, cutoff, t, v)
-    return TFunction(WFunction(m, cutoff), t, v)
+function TFunction(M, cutoff, t, v)
+    return TFunction(WFunction(M, cutoff), cutoff, float(t), float(v))
 end
 function (t_fun::TFunction{M})(p, q, k) where {M}
     t, v = t_fun.t, t_fun.v
     k_pi = n_to_k(k, M)
     pmq_pi = n_to_k(p - q, M)
-    cor_k = correlation_factor(h, k)
+    cor_k = correlation_factor(k, t_fun.cutoff, M)
     return v/M + 2v/M * (cor_k * k_pi - cor_k * pmq_pi) + 2v^2/t * t_fun.w(k)
 end
 
 function Transcorrelated(address; t=1, v=1, v_ho=0, cutoff=1)
     M = num_modes(address)
 
-    t_fun = TFunction()
+    t_fun = TFunction(num_modes(address), cutoff, t, v)
 
-    op = Dispersion(address, t) + MomentumTransfer(address, t_fun)
+    op = KineticEnergy(address, t; dispersion=continuum_dispersion) +
+        MomentumTransfer(address, t_fun; fold=false)
     # 3-body here
     if v_ho ≠ 0
         op += HarmonicOscillatorMom(address, v_ho)
