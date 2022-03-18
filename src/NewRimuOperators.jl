@@ -23,6 +23,7 @@ include("column.jl")
 
 include("sum.jl")
 include("momentumtransfer.jl")
+include("threebody.jl")
 include("dispersion.jl")
 include("harmonicoscillator.jl")
 
@@ -64,14 +65,32 @@ function (t_fun::TFunction{M})(p, q, k) where {M}
     return v/M + 2v/M * (cor_k * k_pi - cor_k * pmq_pi) + 2v^2/t * t_fun.w(k)
 end
 
-function Transcorrelated(address; t=1, v=1, v_ho=0, cutoff=1)
+struct QFunction{M}
+    cutoff::Int
+    t::Float64
+    v::Float64
+end
+function QFunction(M, cutoff, t, v)
+    return QFunction{M}(cutoff, float(t), float(v))
+end
+function (q_fun::QFunction{M})(k, l) where {M}
+    t, v = q_fun.t, q_fun.v
+    cor_k = correlation_factor(k, q_fun.cutoff, M)
+    cor_l = correlation_factor(l, q_fun.cutoff, M)
+
+    return -v^2/(t * M^2) * cor_k * cor_l
+end
+
+function Transcorrelated(address; t=1, v=1, v_ho=0, cutoff=1, three_body_term=true)
     M = num_modes(address)
 
     t_fun = TFunction(num_modes(address), cutoff, t, v)
 
     op = KineticEnergy(address, t; dispersion=continuum_dispersion) +
         MomentumTransfer(address, t_fun; fold=false)
-    # 3-body here
+    if three_body_term
+        op += ThreeBodyMomentumTransfer(address, QFunction(M, cutoff, t, v))
+    end
     if v_ho ≠ 0
         op += HarmonicOscillatorMom(address, v_ho)
     end
