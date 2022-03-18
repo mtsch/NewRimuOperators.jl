@@ -1,11 +1,16 @@
 using Test
 using Rimu
+using LinearAlgebra
 using NewRimuOperators
 
 function sorted_sparse(ham)
     bsr = BasisSetRep(ham)
     perm = sortperm(bsr.basis)
     return sparse(ham)[perm, perm]
+end
+function offdiags_only(ham)
+    matrix = sorted_sparse(ham)
+    return matrix - diagm(diag(matrix))
 end
 
 @testset "Rimu equivalence" begin
@@ -57,5 +62,22 @@ end
         ham_new = HubbardMom(add1; dispersion=continuum_dispersion)
 
         @test eigen(Matrix(ham_new)).values[1] ≈ eigen(Matrix(ham_rimu)).values[1]
+    end
+
+    @test "Transcorrelated - no 3-body" begin
+        add = FermiFS2C((0,0,1,1,1,0,0), (0,0,1,0,1,0,0))
+
+        ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=false, v_ho=0.1)
+        ham_new = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=false, v_ho=0.1)
+
+        @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
+    end
+    @test "Transcorrelated - with 3-body" begin
+        add = FermiFS2C((0,0,0,1,1,0,0), (1,0,1,0,1,0,0))
+
+        ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=true)
+        ham_new = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=true)
+
+        @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
     end
 end
