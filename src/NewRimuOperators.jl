@@ -16,7 +16,7 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 
 export ConstFunction
 export column
-export KineticEnergy, MomentumTransfer, HarmonicOscillatorMom, HubbardMom
+export KineticEnergy, MomentumTransfer, HarmonicOscillatorMom, HubbardMom, Transcorrelated
 
 include("abstract.jl")
 include("column.jl")
