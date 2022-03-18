@@ -94,7 +94,7 @@ end
         @test eigs(sparse(ham_re; sizelim=1e6); which=:SR)[1][1] ≈
             eigs(sparse(ham_mo; sizelim=1e6); which=:SR)[1][1]
     end
-    @test "Transcorrelated no 3-body" begin
+    @testset "Transcorrelated no 3-body" begin
         add = FermiFS2C((0,0,1,1,1,0,0), (0,0,1,0,1,0,0))
 
         ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=false, v_ho=0.1)
@@ -102,7 +102,7 @@ end
 
         @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
     end
-    @test "Transcorrelated with 3-body" begin
+    @testset "Transcorrelated with 3-body" begin
         add = FermiFS2C((0,0,0,1,1,0,0), (1,0,1,0,1,0,0))
 
         ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=true)
