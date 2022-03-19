@@ -86,7 +86,7 @@ end
             $expr
             num = num_offdiagonals(op, adds[$i], maps[$i])
             if chosen ≤ num
-                new_add_i, value = get_offdiagonal(op, adds[$i], maps[$i], chosen)
+                new_add_i, value = get_offdiagonal(op, adds[$i], maps[$i], chosen, $i)
                 new_add = update_component(add, new_add_i, Val($i))
                 return new_add, value
             else
@@ -104,7 +104,7 @@ end
                 num = num_offdiagonals(op, adds[$i], adds[$j], maps[$i], maps[$j])
                 if chosen ≤ num
                     new_add_i, new_add_j, value = get_offdiagonal(
-                        op, adds[$i], adds[$j], maps[$i], maps[$j], chosen
+                        op, adds[$i], adds[$j], maps[$i], maps[$j], chosen, ($i, $j)
                     )
                     new_add = update_component(add, new_add_i, Val($i))
                     new_add = update_component(new_add, new_add_j, Val($j))
@@ -167,7 +167,7 @@ end
     for i in 1:N
         expr = quote
             $expr
-            result += diagonal_element(op, adds[$i], maps[$i])
+            result += diagonal_element(op, adds[$i], maps[$i], $i)
         end
     end
     if A ≢ NoCompositeAction
@@ -176,7 +176,9 @@ end
             j > i && A === OneWayCompositeAction && continue
             expr = quote
                 $expr
-                result += diagonal_element(op, adds[$i], adds[$j], maps[$i], maps[$j])
+                result += diagonal_element(
+                    op, adds[$i], adds[$j], maps[$i], maps[$j], ($i,$j)
+                )
             end
         end
     end

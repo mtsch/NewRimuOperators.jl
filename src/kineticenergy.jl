@@ -7,11 +7,12 @@
 
 where ``f`` is the `dispersion`.
 """
-struct KineticEnergy{A,M} <: AbstractOperator{A,Float64}
+struct KineticEnergy{A,M,F} <: AbstractOperator{A,Float64}
     address::A
     dispersion::SVector{M,Float64}
+    fun::F
 end
-function KineticEnergy(address, t; dispersion=hubbard_dispersion)
+function KineticEnergy(address, fun; dispersion=hubbard_dispersion)
     M = num_modes(address)
     step = 2π/M
     if isodd(M)
@@ -21,18 +22,18 @@ function KineticEnergy(address, t; dispersion=hubbard_dispersion)
     end
     kr = range(start; step = step, length = M)
     ks = SVector{M}(kr)
-    kes = SVector{M}(t .* dispersion.(kr))
-    return KineticEnergy(address, kes)
+    kes = SVector{M}(dispersion.(kr))
+    return KineticEnergy(address, kes, fun)
 end
 starting_address(op::KineticEnergy) = op.address
 
 num_offdiagonals(::KineticEnergy, _, _) = 0
-function diagonal_element(op::KineticEnergy, _, map)
+function diagonal_element(op::KineticEnergy, address, map, comp=1)
     result = 0.0
     for index in map
         result += index.occnum * op.dispersion[index.mode]
     end
-    return result
+    return result * op.fun(comp)
 end
 
 CompositeAction(::KineticEnergy) = NoCompositeAction()

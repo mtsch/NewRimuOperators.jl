@@ -1,6 +1,7 @@
 module NewRimuOperators
 
 using StaticArrays
+using LinearAlgebra
 
 using Rimu
 # Import some Rimu internals:
@@ -14,35 +15,24 @@ using Rimu.BitStringAddresses: update_component
 # These will be extended
 import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address, LOStructure
 
-export ConstFunction
+export ConstFunction, InteractionMatrix
 export column
 export HarmonicOscillatorMom, HarmonicOscillatorReal, HubbardMom, Transcorrelated, HubbardReal
 
+include("utilities.jl")
 include("abstract.jl")
 include("column.jl")
 include("sum.jl")
 
 include("momentumtransfer.jl")
 include("threebody.jl")
-include("dispersion.jl")
+include("kineticenergy.jl")
 include("harmonicoscillator.jl")
 
 include("onsiteinteraction.jl")
 include("realspacehop.jl")
 
-# Below are some examples on how one would go about writing a Hamiltonian:
-function HubbardMom(address; t=1, u=1, v_ho=0, dispersion=hubbard_dispersion)
-    M = num_modes(address)
-    op = KineticEnergy(address, t; dispersion) + MomentumTransfer(address, u/M)
-    if v_ho ≠ 0
-        op += HarmonicOscillatorMom(address, v_ho)
-    end
-    return op
-end
-
-function HubbardReal(address; u=1.0, t=1.0)
-    return OnsiteInteraction(address, u) + RealSpaceHop(address, t)
-end
+include("hubbard.jl")
 
 using Rimu.Hamiltonians: n_to_k, correlation_factor
 
