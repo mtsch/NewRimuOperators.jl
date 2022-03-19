@@ -97,9 +97,8 @@ function diagonal_element(op::MomentumTransfer, _, _, map_a, map_b, (c_a, c_b))
         for j in 1:length(map_b)
             occ_j = map_b[j].occnum
             q = map_b[j].mode
-            k = p - q
             onproduct_nonzero += (
-                (op.fun(c_a, c_b, p, q, k) + op.fun(c_b, c_a, q, p, -k))/2 * occ_i * occ_j
+                (op.fun(c_a, c_b, p, q, 0) + op.fun(c_b, c_a, q, p, 0))/2 * occ_i * occ_j
             )
         end
     end

@@ -9,10 +9,6 @@ function sorted_sparse(ham)
     perm = sortperm(bsr.basis)
     return sparse(ham)[perm, perm]
 end
-function offdiags_only(ham)
-    matrix = sorted_sparse(ham)
-    return matrix - diagm(diag(matrix))
-end
 
 @testset "Rimu equivalence" begin
     @testset "HubbardMom1D" begin
@@ -107,7 +103,7 @@ end
         ham_new = Transcorrelated(add; v=1.1, t=0.9, three_body_term=false) +
             HarmonicOscillatorMom(add, 0.1)
 
-        @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
+        @test sorted_sparse(ham_rimu) ≈ sorted_sparse(ham_new)
     end
     @testset "Transcorrelated with 3-body" begin
         add = FermiFS2C((0,0,0,1,1,0,0), (1,0,1,0,1,0,0))
@@ -115,7 +111,7 @@ end
         ham_rimu = Transcorrelated1D(add; v=1.1, t=0.9, three_body_term=true)
         ham_new = Transcorrelated(add; v=1.1, t=0.9, three_body_term=true)
 
-        @test offdiags_only(ham_rimu) ≈ offdiags_only(ham_new)
+        @test sorted_sparse(ham_rimu) ≈ sorted_sparse(ham_new)
     end
 end
 @testset "TC transpose" begin
