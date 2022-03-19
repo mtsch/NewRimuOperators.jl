@@ -1,0 +1,81 @@
+using Rimu.Hamiltonians: n_to_k, correlation_factor
+
+struct WFunction{M}
+    values::NTuple{M,Float64}
+end
+function WFunction(M, cutoff)
+    return WFunction(Tuple(Rimu.Hamiltonians.w_function.(0:M-1, cutoff)))
+end
+(w::WFunction)(n) = w.values[abs(n) + 1]
+
+struct TFunction{M}
+    w::WFunction{M}
+    cutoff::Int
+    t::Float64
+    v::Float64
+end
+function TFunction(M, cutoff, t, v)
+    return TFunction(WFunction(M, cutoff), cutoff, float(t), float(v))
+end
+function (t_fun::TFunction{M})(_, _, p, q, k) where {M}
+    t, v = t_fun.t, t_fun.v
+    k_pi = n_to_k(k, M)
+    pmq_pi = n_to_k(p - q, M)
+    cor_k = correlation_factor(k, t_fun.cutoff, M)
+    return v/M + 2v/M * (cor_k * k_pi - cor_k * pmq_pi) + 2v^2/t * t_fun.w(k)
+end
+
+struct QFunction{M}
+    cutoff::Int
+    t::Float64
+    v::Float64
+end
+function QFunction(M, cutoff, t, v)
+    return QFunction{M}(cutoff, float(t), float(v))
+end
+function (q_fun::QFunction{M})(_, _, k, l) where {M}
+    t, v = q_fun.t, q_fun.v
+    cor_k = correlation_factor(k, q_fun.cutoff, M)
+    cor_l = correlation_factor(l, q_fun.cutoff, M)
+
+    return -v^2/(t * M^2) * cor_k * cor_l
+end
+
+struct Transcorrelated{A,K,I} <: Hamiltonian{A,Float64}
+    address::A
+    t::Float64
+    v::Float64
+    cutoff::Int
+    three_body_term::Bool
+    interaction::I
+    kinetic::K
+end
+
+function Transcorrelated(address; t=1, v=1, cutoff=1, three_body_term=true)
+    M = num_modes(address)
+
+    t_fun = TFunction(num_modes(address), cutoff, t, v)
+
+    kinetic = KineticEnergy(address, ConstFunction(t); dispersion=continuum_dispersion)
+    interaction = MomentumTransfer(address, t_fun; fold=false)
+    if three_body_term
+        interaction += ThreeBodyMomentumTransfer(address, QFunction(M, cutoff, t, v))
+    end
+    return Transcorrelated(address, t, v, cutoff, three_body_term, interaction, kinetic)
+end
+
+function Base.show(io::IO, h::Transcorrelated)
+    print(io, "Transcorrelated(")
+    print(IOContext(io, :compact => true), h.address)
+    print(io, "; t=$(h.t), v=$(h.v), cutoff=$(h.cutoff), three_body_term=$(h.three_body_term))")
+end
+
+terms(h::Transcorrelated) = h.interaction + h.kinetic
+
+starting_address(h::Transcorrelated) = h.address
+LOStructure(::Transcorrelated) = AdjointKnown()
+function Base.adjoint(h::Transcorrelated)
+    return Transcorrelated(
+        h.address, h.t, h.v, h.cutoff, h.three_body_term, adjoint(h.interaction), h.kinetic
+    )
+end

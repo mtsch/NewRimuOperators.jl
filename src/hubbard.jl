@@ -36,7 +36,7 @@ end
 
 starting_address(h::HubbardMom) = h.address
 LOStructure(::HubbardMom) = IsHermitian()
-components(h::HubbardMom) = h.kinetic_energy + h.momentum_transfer
+terms(h::HubbardMom) = h.kinetic_energy + h.momentum_transfer
 
 struct HubbardReal{A,N,H<:RealSpaceHop,O<:OnsiteInteraction} <: Hamiltonian{A,Float64}
     address::A
@@ -74,4 +74,4 @@ end
 
 starting_address(h::HubbardReal) = h.address
 LOStructure(::HubbardReal) = IsHermitian()
-components(h::HubbardReal) = h.hopping + h.interaction
+terms(h::HubbardReal) = h.hopping + h.interaction

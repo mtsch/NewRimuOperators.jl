@@ -17,7 +17,8 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 
 export ConstFunction, InteractionMatrix
 export column
-export HarmonicOscillatorMom, HarmonicOscillatorReal, HubbardMom, Transcorrelated, HubbardReal
+export HarmonicOscillatorMom, HarmonicOscillatorReal
+export HubbardMom, HubbardReal, Transcorrelated
 
 include("utilities.jl")
 include("abstract.jl")
@@ -33,64 +34,6 @@ include("onsiteinteraction.jl")
 include("realspacehop.jl")
 
 include("hubbard.jl")
-
-using Rimu.Hamiltonians: n_to_k, correlation_factor
-
-struct WFunction{M}
-    values::NTuple{M,Float64}
-end
-function WFunction(M, cutoff)
-    return WFunction(Tuple(Rimu.Hamiltonians.w_function.(0:M-1, cutoff)))
-end
-(w::WFunction)(n) = w.values[abs(n) + 1]
-
-struct TFunction{M}
-    w::WFunction{M}
-    cutoff::Int
-    t::Float64
-    v::Float64
-end
-function TFunction(M, cutoff, t, v)
-    return TFunction(WFunction(M, cutoff), cutoff, float(t), float(v))
-end
-function (t_fun::TFunction{M})(p, q, k) where {M}
-    t, v = t_fun.t, t_fun.v
-    k_pi = n_to_k(k, M)
-    pmq_pi = n_to_k(p - q, M)
-    cor_k = correlation_factor(k, t_fun.cutoff, M)
-    return v/M + 2v/M * (cor_k * k_pi - cor_k * pmq_pi) + 2v^2/t * t_fun.w(k)
-end
-
-struct QFunction{M}
-    cutoff::Int
-    t::Float64
-    v::Float64
-end
-function QFunction(M, cutoff, t, v)
-    return QFunction{M}(cutoff, float(t), float(v))
-end
-function (q_fun::QFunction{M})(k, l) where {M}
-    t, v = q_fun.t, q_fun.v
-    cor_k = correlation_factor(k, q_fun.cutoff, M)
-    cor_l = correlation_factor(l, q_fun.cutoff, M)
-
-    return -v^2/(t * M^2) * cor_k * cor_l
-end
-
-function Transcorrelated(address; t=1, v=1, v_ho=0, cutoff=1, three_body_term=true)
-    M = num_modes(address)
-
-    t_fun = TFunction(num_modes(address), cutoff, t, v)
-
-    op = KineticEnergy(address, t; dispersion=continuum_dispersion) +
-        MomentumTransfer(address, t_fun; fold=false)
-    if three_body_term
-        op += ThreeBodyMomentumTransfer(address, QFunction(M, cutoff, t, v))
-    end
-    if v_ho ≠ 0
-        op += HarmonicOscillatorMom(address, v_ho)
-    end
-    return op
-end
+include("transcorrelated.jl")
 
 end # module
