@@ -326,7 +326,7 @@ struct FullTwoBodyTerm{A,F,T,ADJ} <: AbstractOperator{A,T}
     address::A
     fun::F
 end
-function FullTwoBodyTerm(address::A, fun::T) where {A,F}
+function FullTwoBodyTerm(address::A, fun::F) where {A,F}
     T = float(typeof(fun(1)))
     return FullTwoBodyTerm{A,F,T}(address, fun)
 end
