@@ -8,21 +8,23 @@
 In the sum above, ``σ`` and ``τ`` are spin indices, while ``p``, ``q``, and ``k`` are
 integer mode indices.
 """
-struct MomentumTransfer{A,T,F} <: AbstractOperator{A,T}
+struct MomentumTransfer{A,T,F,Fold,Adjoint} <: AbstractOperator{A,T}
     address::A
     fun::F
-    fold::Bool
-    isadjoint::Bool
 end
 function MomentumTransfer(
     address::A, fun::F; fold=true, isadjoint=false
 ) where {A,F,I}
     T = float(typeof(fun(1, 1, 1, 1, 1)))
-    return MomentumTransfer{A,T,F}(address, fun, fold, isadjoint)
+    return MomentumTransfer{A,T,F,fold,isadjoint}(address, fun)
 end
 function MomentumTransfer(address, val::Number=1; kwargs...)
     return MomentumTransfer(address, ConstFunction(float(val)); kwargs...)
 end
+
+_fold(::MomentumTransfer{<:Any,<:Any,<:Any,F}) where {F} = F
+_isadjoint(::MomentumTransfer{<:Any,<:Any,<:Any,<:Any,A}) where {A} = A
+
 function Base.show(io::IO, op::MomentumTransfer)
     print(IOContext(io, :compact => true), "MomentumTransfer(", op.address, ")")
     if op.fun isa ConstFunction
@@ -30,7 +32,7 @@ function Base.show(io::IO, op::MomentumTransfer)
     else
         print(io, "$(op.fun);")
     end
-    print(io, "fold=$(op.fold), isadjoint=$(op.isadjoint))")
+    print(io, "fold=$(_fold(op)), isadjoint=$(_isadjoint(op))")
 end
 
 starting_address(op::MomentumTransfer) = op.address
@@ -43,8 +45,8 @@ function num_offdiagonals(::MomentumTransfer, bs::BoseFS, map)
     return singlies * (singlies - 1) * (M - 2) + doublies * (M - 1)
 end
 function get_offdiagonal(op::MomentumTransfer, bs::BoseFS, map, i, comp=1)
-    new_add, val, p, q, k = momentum_transfer_excitation(bs, i, map; fold=op.fold)
-    val = if !op.isadjoint
+    new_add, val, p, q, k = momentum_transfer_excitation(bs, i, map; fold=_fold(op))
+    val = if !_isadjoint(op)
         op.fun(comp, comp, p, q, k) * val
     else
         conj(op.fun(comp, comp, p - k, q + k, k)) * val
@@ -79,9 +81,9 @@ function num_offdiagonals(::MomentumTransfer, add_a, add_b, map_a, map_b)
 end
 function get_offdiagonal(op::MomentumTransfer, add_a, add_b, map_a, map_b, i, (c_a, c_b))
     new_add_a, new_add_b, val, p, q, k = momentum_transfer_excitation(
-        add_a, add_b, i, map_a, map_b, fold=op.fold
+        add_a, add_b, i, map_a, map_b, fold=_fold(op)
     )
-    val = if !op.isadjoint
+    val = if !_isadjoint(op)
         op.fun(c_a, c_b, p, q, k) * val
     else
         conj(op.fun(c_b, c_a, p - k, q + k, -k)) * val
@@ -111,8 +113,9 @@ LOStructure(::MomentumTransfer{<:Any,<:Any,<:InteractionMatrixFunction{<:Any,<:R
     IsHermitian()
 LOStructure(::MomentumTransfer) =
     AdjointKnown()
-function Base.adjoint(op::M) where {M<:MomentumTransfer}
-    return M(op.address, op.fun, op.fold, !op.isadjoint)
+
+function Base.adjoint(op::MomentumTransfer{A,T,F,Fold,Adjoint}) where {A,T,F,Fold,Adjoint}
+    return MomentumTransfer{A,T,F,Fold,!Adjoint}(op.address, op.fun)
 end
 
 CompositeAction(::MomentumTransfer) = OneWayCompositeAction()

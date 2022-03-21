@@ -69,9 +69,6 @@ Base.show(io::IO, col::CompositeColumn) = print(io, "column($(col.operator), $(c
 function get_offdiagonal(col::CompositeColumn, chosen)
     return get_offdiagonal(CompositeAction(col.operator), col, chosen)
 end
-# NOTE FOR CHRIS: @generated functions are a way to generate code based on the types of
-# the inputs.
-# See: https://docs.julialang.org/en/v1/manual/metaprogramming/#Generated-functions
 @generated function get_offdiagonal(::A, col::CompositeColumn{N}, chosen) where {A,N}
     expr = quote
         orig_chosen = chosen # for error at the end
@@ -106,8 +103,7 @@ end
                     new_add_i, new_add_j, value = get_offdiagonal(
                         op, adds[$i], adds[$j], maps[$i], maps[$j], chosen, ($i, $j)
                     )
-                    new_add = update_component(add, new_add_i, Val($i))
-                    new_add = update_component(new_add, new_add_j, Val($j))
+                    new_add = update_component(add, new_add_i, new_add_j, Val($i), Val($j))
                     return new_add, value
                 else
                     chosen -= num

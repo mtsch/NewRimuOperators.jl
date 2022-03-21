@@ -51,6 +51,7 @@ function get_offdiagonal(col::OperatorSumColumn, chosen)
         chosen -= col.n_left
         return get_offdiagonal(col.right, chosen)
     else
+        # TODO removing this throw makes things slower. Hide it under @boundscheck?
         throw(BoundsError(col, orig_chosen))
     end
 end

@@ -8,20 +8,38 @@ function WFunction(M, cutoff)
 end
 (w::WFunction)(n) = w.values[abs(n) + 1]
 
+struct CorrelationFactor{M}
+    values::NTuple{M,Float64}
+end
+function CorrelationFactor(M, cutoff)
+    CorrelationFactor(Tuple(correlation_factor.(1:M, cutoff, M)))
+end
+function (u::CorrelationFactor)(n)
+    absn = abs(n)
+    if absn > 0
+        return sign(n) * u.values[absn]
+    else
+        return 0.0
+    end
+end
+
 struct TFunction{M}
-    w::WFunction{M}
     cutoff::Int
     t::Float64
     v::Float64
+    u::CorrelationFactor{M}
+    w::WFunction{M}
 end
 function TFunction(M, cutoff, t, v)
-    return TFunction(WFunction(M, cutoff), cutoff, float(t), float(v))
+    w = WFunction(M, cutoff)
+    u = CorrelationFactor(M, cutoff)
+    return TFunction(cutoff, float(t), float(v), u, w)
 end
-function (t_fun::TFunction{M})(_, _, p, q, k) where {M}
+@fastmath function (t_fun::TFunction{M})(_, _, p, q, k) where {M}
     t, v = t_fun.t, t_fun.v
     k_pi = n_to_k(k, M)
     pmq_pi = n_to_k(p - q, M)
-    cor_k = correlation_factor(k, t_fun.cutoff, M)
+    cor_k = t_fun.u(k)
     return v/M + 2v/M * (cor_k * k_pi - cor_k * pmq_pi) + 2v^2/t * t_fun.w(k)
 end
 
@@ -29,14 +47,15 @@ struct QFunction{M}
     cutoff::Int
     t::Float64
     v::Float64
+    u::CorrelationFactor{M}
 end
 function QFunction(M, cutoff, t, v)
-    return QFunction{M}(cutoff, float(t), float(v))
+    return QFunction{M}(cutoff, float(t), float(v), CorrelationFactor(M, cutoff))
 end
 function (q_fun::QFunction{M})(_, _, k, l) where {M}
     t, v = q_fun.t, q_fun.v
-    cor_k = correlation_factor(k, q_fun.cutoff, M)
-    cor_l = correlation_factor(l, q_fun.cutoff, M)
+    cor_k = q_fun.u(k)
+    cor_l = q_fun.u(l)
 
     return -v^2/(t * M^2) * cor_k * cor_l
 end
