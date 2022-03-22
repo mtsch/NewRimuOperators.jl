@@ -66,21 +66,27 @@ struct Transcorrelated{A,K,I} <: Hamiltonian{A,Float64}
     v::Float64
     cutoff::Int
     three_body_term::Bool
-    interaction::I
-    kinetic::K
+    kinetic_term::K
+    interaction_term::I
 end
 
-function Transcorrelated(address; t=1, v=1, cutoff=1, three_body_term=true)
+function Transcorrelated(address; t::Real=1, v::Real=1, cutoff=1, three_body_term=true)
     M = num_modes(address)
+    C = num_components(address)
 
     t_fun = TFunction(num_modes(address), cutoff, t, v)
 
-    kinetic = KineticEnergy(address, ConstFunction(t); dispersion=continuum_dispersion)
-    interaction = MomentumTransfer(address, t_fun; fold=false)
+    ts = @SVector fill(t, C)
+    kinetic_term = ParticleCountTerm(
+        address, KineticEnergyFunction(address, ts, continuum_dispersion)
+    )
+    interaction_term = MomentumTwoBodyTerm(address, t_fun; fold=false)
     if three_body_term
-        interaction += ThreeBodyMomentumTransfer(address, QFunction(M, cutoff, t, v))
+        interaction_term += MomentumThreeBodyTerm(address, QFunction(M, cutoff, t, v))
     end
-    return Transcorrelated(address, t, v, cutoff, three_body_term, interaction, kinetic)
+    return Transcorrelated(
+        address, t, v, cutoff, three_body_term, kinetic_term, interaction_term
+    )
 end
 
 function Base.show(io::IO, h::Transcorrelated)
@@ -89,12 +95,13 @@ function Base.show(io::IO, h::Transcorrelated)
     print(io, "; t=$(h.t), v=$(h.v), cutoff=$(h.cutoff), three_body_term=$(h.three_body_term))")
 end
 
-terms(h::Transcorrelated) = h.interaction + h.kinetic
+terms(h::Transcorrelated) = h.interaction_term + h.kinetic_term
 
 starting_address(h::Transcorrelated) = h.address
 LOStructure(::Transcorrelated) = AdjointKnown()
 function Base.adjoint(h::Transcorrelated)
     return Transcorrelated(
-        h.address, h.t, h.v, h.cutoff, h.three_body_term, adjoint(h.interaction), h.kinetic
+        h.address, h.t, h.v, h.cutoff,
+        h.three_body_term, adjoint(h.interaction_term), h.kinetic_term
     )
 end

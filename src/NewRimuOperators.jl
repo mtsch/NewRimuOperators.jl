@@ -43,22 +43,15 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 export ConstFunction, InteractionMatrix
 export column
 export HarmonicOscillatorMom, HarmonicOscillatorReal
-export HubbardMom, HubbardReal, Transcorrelated
+export Hubbard, Transcorrelated
 
 include("utilities.jl")
 include("abstract.jl")
 include("column.jl")
 include("sum.jl")
-
-include("momentumtransfer.jl")
-include("threebody.jl")
-include("kineticenergy.jl")
-include("harmonicoscillator.jl")
-
-include("onsiteinteraction.jl")
-include("realspacehop.jl")
-
 include("terms.jl")
+
+include("harmonicoscillator.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")

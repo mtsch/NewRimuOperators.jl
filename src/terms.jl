@@ -206,7 +206,7 @@ struct MomentumTwoBodyTerm{A,T,F,Fold,Adjoint} <: AbstractOperator{A,T}
 end
 function MomentumTwoBodyTerm(address::A, fun::F; fold=true) where {A,F}
     T = float(typeof(fun(1, 1, 1, 1, 1)))
-    return MomentumTwoBodyTerm{A,T,F,fold,isadjoint}(address, fun)
+    return MomentumTwoBodyTerm{A,T,F,fold,false}(address, fun)
 end
 function MomentumTwoBodyTerm(address, val::Number=1; kwargs...)
     return MomentumTwoBodyTerm(address, ConstFunction(float(val)); kwargs...)
