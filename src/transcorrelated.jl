@@ -85,7 +85,8 @@ function Transcorrelated(address; t::Real=1, v::Real=1, cutoff=1, three_body_ter
         interaction_term += MomentumThreeBodyTerm(address, QFunction(M, cutoff, t, v))
     end
     return Transcorrelated(
-        address, t, v, cutoff, three_body_term, kinetic_term, interaction_term
+        address, Float64(t), Float64(v), cutoff, three_body_term,
+        kinetic_term, interaction_term,
     )
 end
 

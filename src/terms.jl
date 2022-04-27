@@ -274,7 +274,7 @@ end
 
 # Single fermionic component has no contributions.
 num_offdiagonals(::MomentumTwoBodyTerm, ::FermiFS, _) = 0
-diagonal_element(::MomentumTwoBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
+diagonal_element(::MomentumTwoBodyTerm{<:Any,T}, ::FermiFS, map, comp=1) where {T} = zero(T)
 
 # Cross-component part
 function num_offdiagonals(::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b)
@@ -327,7 +327,7 @@ struct FullTwoBodyTerm{A,F,T,ADJ} <: AbstractOperator{A,T}
     fun::F
 end
 function FullTwoBodyTerm(address::A, fun::F) where {A,F}
-    T = float(typeof(fun(1)))
+    T = float(typeof(fun(1,1,1,1,1,1)))
     return FullTwoBodyTerm{A,F,T}(address, fun)
 end
 
@@ -360,8 +360,10 @@ end
 
 # TODO: Signle bosonic component not implemented
 
-# Single fermionic component has no contributions.
-num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, _) = 0
+# Single fermionic component has no contributions. (or does it?)
+function num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map, comp=1)
+    length(map) * (M - 1)
+end
 diagonal_element(::FullTwoBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
 
 # Cross-component part
@@ -438,7 +440,7 @@ CompositeAction(::MomentumThreeBodyTerm) = TwoWayCompositeAction()
 
 # Single fermionic component has no contributions
 num_offdiagonals(::MomentumThreeBodyTerm, ::FermiFS, _) = 0
-diagonal_element(::MomentumThreeBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
+diagonal_element(::MomentumThreeBodyTerm{<:Any,T}, ::FermiFS, map, c=1) where {T} = zero(T)
 
 # Cross-component part
 function num_offdiagonals(::MomentumThreeBodyTerm, add_a, add_b, map_a, map_b)

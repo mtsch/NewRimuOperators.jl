@@ -56,4 +56,6 @@ include("harmonicoscillator.jl")
 include("hubbard.jl")
 include("transcorrelated.jl")
 
+include("potentials.jl")
+
 end # module
