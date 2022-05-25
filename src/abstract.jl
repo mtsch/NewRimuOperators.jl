@@ -77,3 +77,6 @@ num_offdiagonals(h::Hamiltonian, args...) = get_offdiagonal(terms(h), args...)
 get_offdiagonal(h::Hamiltonian, args...) = get_offdiagonal(terms(h), args...)
 column(h::Hamiltonian{A}, add::A) where {A} = column(terms(h), add)
 column(h::Hamiltonian{A}, add::A) where {A<:CompositeFS} = column(terms(h), add)
+
+is_real_space(::Hamiltonian) = false
+is_mom_space(::Hamiltonian) = false

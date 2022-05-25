@@ -21,7 +21,7 @@ end
 
 starting_address(op::ParticleCountTerm) = op.address
 CompositeAction(::ParticleCountTerm) = NoCompositeAction()
-LOStructure(::ParticleCountTerm) = IsHermitian() # TODO should be IsDiagonal?
+LOStructure(::ParticleCountTerm) = IsHermitian()
 
 num_offdiagonals(::ParticleCountTerm, args...) = 0
 
@@ -90,7 +90,7 @@ end
 The neighbour hopping term in 1D:
 
 ```math
-\\sum_{σ,⟨i, j⟩} f(σ) \\hat(a)^†_i \\hat{a}_j,
+\\sum_{σ,⟨j, i⟩} f(σ) \\hat{a}^†_j \\hat{a}_i,
 ```
 
 where ``f`` is the `fun` and ``sigma`` the spin component index.
@@ -167,8 +167,13 @@ end
 num_offdiagonals(::FullOneBodyTerm, add, map) = length(map) * (num_modes(add) - 1)
 
 function diagonal_element(op::FullOneBodyTerm, add, map, comp=1)
-    return sum(map) do index
+    result = sum(map) do index
         op.fun(comp, index.mode, index.mode) * float(index.occnum)
+    end
+    if isadjoint(op)
+        return conj(result)
+    else
+        return result
     end
 end
 
@@ -251,8 +256,10 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, bs::BoseFS, map, i, comp=1)
     val = if !isadjoint(op)
         op.fun(comp, comp, p, q, k) * val
     else
-        conj(op.fun(comp, comp, p - k, q + k, k)) * val
+        error("adjoint is not supported for bosons")
+        conj(op.fun(comp, comp, q + k, p - k, -k)) * val
     end
+
     return new_add, val/2
 end
 function diagonal_element(op::MomentumTwoBodyTerm, bs::BoseFS, map, comp=1)
@@ -269,7 +276,11 @@ function diagonal_element(op::MomentumTwoBodyTerm, bs::BoseFS, map, comp=1)
             onproduct_nonzero += op.fun(comp, comp, p, q, k) * 4 * occ_i * occ_j
         end
     end
-    return (onproduct_zero + onproduct_nonzero) / 2
+    if isadjoint(op)
+        return conj(onproduct_zero + onproduct_nonzero) / 2
+    else
+        return (onproduct_zero + onproduct_nonzero) / 2
+    end
 end
 
 # Single fermionic component has no contributions.
@@ -314,7 +325,7 @@ end
 
 ```math
 \\sum_{σ,τ,p,q,r,s} f(σ,τ,p,q,r,s)
-    \\hat{a}^†_{p,σ} \\hat{a}^†{q,τ} \\hat{a}_{r,τ} \\hat{a}_{s,σ}
+    \\hat{a}^†_{s,σ} \\hat{a}^†{r,τ} \\hat{a}_{q,τ} \\hat{a}_{p,σ}
 ```
 
 where ``f`` is the `fun`, ``σ`` and ``tau`` the spin component indices, and ``p,q,r,s`` the
@@ -328,20 +339,20 @@ struct FullTwoBodyTerm{A,F,T,ADJ} <: AbstractOperator{A,T}
 end
 function FullTwoBodyTerm(address::A, fun::F) where {A,F}
     T = float(typeof(fun(1,1,1,1,1,1)))
-    return FullTwoBodyTerm{A,F,T}(address, fun)
+    return FullTwoBodyTerm{A,F,T,false}(address, fun)
 end
 
 _fold(::FullTwoBodyTerm{<:Any,<:Any,<:Any,F}) where {F} = F
 isadjoint(::FullTwoBodyTerm{<:Any,<:Any,<:Any,A}) where {A} = A
 
 function Base.show(io::IO, op::FullTwoBodyTerm)
-    print(IOContext(io, :compact => true), "FullTwoBodyTerm(", op.address, ")")
+    print(IOContext(io, :compact => true), "FullTwoBodyTerm(", op.address, ", ")
     if op.fun isa ConstFunction
-        print(io, "$(op.fun.value);")
+        print(io, "$(op.fun.value); ")
     else
-        print(io, "$(op.fun);")
+        print(io, "$(op.fun); ")
     end
-    print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op))")
+    print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op)))")
 end
 
 starting_address(op::FullTwoBodyTerm) = op.address
@@ -360,11 +371,25 @@ end
 
 # TODO: Signle bosonic component not implemented
 
-# Single fermionic component has no contributions. (or does it?)
-function num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map, comp=1)
-    length(map) * (M - 1)
+# Single fermionic component has no contributions.
+num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map, comp=1) = 0
+diagonal_element(::FullTwoBodyTerm{<:Any,<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
+
+function full_two_body_excitation(add_a, add_b, i, map_a, map_b)
+    N1 = length(map_a)
+    N2 = length(map_b)
+    M = num_modes(add_a)
+    s, r, q, p = Tuple(CartesianIndices((M, M, N2, N1))[i])
+    s_index = find_mode(add_a, s)
+    r_index = find_mode(add_b, r)
+    q_index = map_b[q]
+    p_index = map_a[p]
+
+    new_add_a, val_a = excitation(add_a, (s_index,), (p_index,))
+    new_add_b, val_b = excitation(add_b, (r_index,), (q_index,))
+
+    return new_add_a, new_add_b, val_a * val_b, p_index.mode, q_index.mode, r, s
 end
-diagonal_element(::FullTwoBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
 
 # Cross-component part
 function num_offdiagonals(::FullTwoBodyTerm, add_a, add_b, map_a, map_b)
@@ -388,8 +413,8 @@ function diagonal_element(
 )
     # This is equivalent to ∑_{p,q} fun(σ,τ,p,q,q,p) n_{p,σ} n_{q,τ}
     onproduct = zero(eltype(op))
-    for i in 1:length(map_a)
-        for j in 1:length(map_b)
+    for i in map_a
+        for j in map_b
             p = i.mode
             q = j.mode
             onproduct += op.fun(c_a, c_b, p, q, q, p) * i.occnum * j.occnum

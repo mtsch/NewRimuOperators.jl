@@ -59,3 +59,10 @@ end
 function diagonal_element(col::OperatorSumColumn)
     return diagonal_element(col.left) + diagonal_element(col.right)
 end
+
+function is_mom_space(op::OperatorSum)
+    return is_mom_space(op.left) || is_mom_space(op.right)
+end
+function is_real_space(op::OperatorSum)
+    return is_real_space(op.left) || is_real_space(op.right)
+end
