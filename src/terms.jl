@@ -53,7 +53,7 @@ end
 
 starting_address(op::OnsiteInteractionTerm) = op.address
 CompositeAction(::OnsiteInteractionTerm) = OneWayCompositeAction()
-LOStructure(::OnsiteInteractionTerm) = IsHermitian()
+LOStructure(::OnsiteInteractionTerm) = IsDiagonal()
 
 num_offdiagonals(op::OnsiteInteractionTerm, _, _) = 0
 num_offdiagonals(op::OnsiteInteractionTerm, _, _, _, _) = 0
@@ -106,7 +106,7 @@ end
 
 starting_address(op::NeighbourOneBodyTerm) = op.address
 CompositeAction(::NeighbourOneBodyTerm) = NoCompositeAction()
-LOStructure(::NeighbourOneBodyTerm) = IsHermitian()
+LOStructure(::NeighbourOneBodyTerm) = IsDiagonal()
 
 function num_offdiagonals(op::NeighbourOneBodyTerm, _, map)
     return 2 * length(map)

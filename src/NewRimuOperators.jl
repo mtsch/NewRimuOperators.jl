@@ -42,16 +42,14 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 
 export ConstFunction, InteractionMatrix
 export column
-export HarmonicOscillatorMom, HarmonicOscillatorReal
 export Hubbard, Transcorrelated
+export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 
 include("utilities.jl")
 include("abstract.jl")
 include("column.jl")
 include("sum.jl")
 include("terms.jl")
-
-include("harmonicoscillator.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")
