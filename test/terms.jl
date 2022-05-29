@@ -8,8 +8,7 @@ using NewRimuOperators:
     MomentumTwoBodyTerm, FullTwoBodyTerm, MomentumThreeBodyTerm
 
 @testset "terms" begin
-    function one_component_changed_or_zero(term)
-        add = starting_address(term)
+    function one_component_changed_or_zero(term, add)
         # Only one address changes at a time
         for (new_add, val) in offdiagonals(term, add)
             if new_add.components[1] ≠ add.components[1]
@@ -23,11 +22,11 @@ using NewRimuOperators:
         return true
     end
 
-    function good_structure(term)
+    function good_structure(term, add)
         if LOStructure(term) == IsHermitian() || LOStructure(term) == IsDiagonal()
-            return ishermitian(Matrix(term))
+            return ishermitian(Matrix(term, add))
         elseif LOStructure(term) == AdjointKnown()
-            return Matrix(term)' == Matrix(term')
+            return Matrix(term, add)' == Matrix(term', add)
         end
     end
 
@@ -36,10 +35,10 @@ using NewRimuOperators:
             BoseFS((0, 1, 2, 0)),
             FermiFS((1, 1, 0, 0)),
         )
-        term = ParticleCountTerm(add, (σ, p) -> σ * p)
+        term = ParticleCountTerm((σ, p) -> σ * p)
         @test length(offdiagonals(term, add)) == 0
         @test diagonal_element(term, add) == 2 + 6 + 2 * (1 + 2)
-        @test good_structure(term)
+        @test good_structure(term, add)
     end
 
     @testset "OnsiteInteractionTerm" begin
@@ -47,10 +46,10 @@ using NewRimuOperators:
             BoseFS((0, 1, 3, 0)),
             FermiFS((1, 1, 1, 0)),
         )
-        term = OnsiteInteractionTerm(add, (σ, τ) -> σ == τ ? 10 : 2)
+        term = OnsiteInteractionTerm((σ, τ) -> σ == τ ? 10 : 2)
         @test length(offdiagonals(term, add)) == 0
         @test diagonal_element(term, add) == 30 + 2 * (1 + 3)
-        @test good_structure(term)
+        @test good_structure(term, add)
     end
 
     @testset "NeighbourOneBodyTerm" begin
@@ -58,11 +57,11 @@ using NewRimuOperators:
             BoseFS((0, 0, 3, 0)),
             FermiFS((1, 1, 1, 0)),
         )
-        term = NeighbourOneBodyTerm(add, identity)
+        term = NeighbourOneBodyTerm(identity)
         @test length(offdiagonals(term, add)) == 2 + 6
-        @test one_component_changed_or_zero(term)
+        @test one_component_changed_or_zero(term, add)
         @test diagonal_element(term, add) == 0
-        @test good_structure(term)
+        @test good_structure(term, add)
     end
 
     @testset "FullOneBodyTerm" begin
@@ -70,11 +69,11 @@ using NewRimuOperators:
             BoseFS((0, 0, 3, 0)),
             FermiFS((1, 1, 0, 0)),
         )
-        term = FullOneBodyTerm(add, (σ, q, p) -> σ == 1 ? (p - q * im) : (p * q + im))
+        term = FullOneBodyTerm((σ, q, p) -> σ == 1 ? (p - q * im) : (p * q + im))
         @test num_offdiagonals(term, add) == 3 * 3
         @test diagonal_element(term, add) == 14 - 7im
-        @test one_component_changed_or_zero(term)
-        @test good_structure(term)
+        @test one_component_changed_or_zero(term, add)
+        @test good_structure(term, add)
     end
 
     @testset "MomentumTwoBodyTerm" begin
@@ -82,9 +81,9 @@ using NewRimuOperators:
             BoseFS((0, 0, 3, 0)),
             FermiFS((1, 1, 0, 0)),
         )
-        term = MomentumTwoBodyTerm(add, (σ,τ,p,q,k) -> σ * τ * mod1(k,num_modes(add)) + (p - q))
+        term = MomentumTwoBodyTerm((σ,τ,p,q,k) -> σ * τ * mod1(k,num_modes(add)) + (p - q))
         # Broken with bosons due to how momentum_transfer_excitation is implemented.
-        @test_broken good_structure(term)
+        @test_broken good_structure(term, add)
     end
 
     @testset "FullTwoBodyTerm" begin
@@ -92,8 +91,8 @@ using NewRimuOperators:
             FermiFS((0, 0, 1, 0, 1, 0)),
             FermiFS((1, 1, 0, 0, 0, 0)),
         )
-        term = FullTwoBodyTerm(add, (σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s))
-        @test_broken good_structure(term)
+        term = FullTwoBodyTerm((σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s))
+        @test_broken good_structure(term, add)
     end
 
     @testset "MomentumThreeBodyTerm" begin
@@ -101,7 +100,7 @@ using NewRimuOperators:
             FermiFS((0, 0, 1, 0, 1, 0)),
             FermiFS((1, 1, 0, 0, 0, 0)),
         )
-        term = MomentumThreeBodyTerm(add, (σ,τ,k,l) -> σ * τ * (k + l))
+        term = MomentumThreeBodyTerm((σ,τ,k,l) -> σ * τ * (k + l))
     end
 
 end

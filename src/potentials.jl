@@ -1,60 +1,6 @@
 using Rimu.Hamiltonians: i_to_k, shift_lattice
 
 """
-    base_hamiltonian(op::AbstractOperator) -> Union{AbstractOperator,Nothing}
-
-Get the only Hamiltonian in a sum. If there are more, throw an error.
-"""
-base_hamiltonian(op::AbstractOperator) = nothing
-base_hamiltonian(ham::Hamiltonian) = ham
-function base_hamiltonian(op::OperatorSum)
-    left = base_hamiltonian(op.left)
-    right = base_hamiltonian(op.right)
-    if isnothing(left) && isnothing(right)
-        return nothing
-    elseif isnothing(left)
-        return right
-    elseif isnothing(right)
-        return left
-    else
-        throw(ArgumentError("More than one Hamiltonian found in sum."))
-    end
-end
-
-
-"""
-    abstract type PotentialPrototype
-
-A prototype for a potential (or other modifier that adds terms to existing operator). When
-added to an operator, it can use information from it to construct appropriate terms.
-
-# See also
-
-* [`HarmonicPotential`](@ref)
-* [`DeltaFunctionPotential`](@ref)
-* [`TranscorrelatedDeltaPotential`](@ref)
-"""
-abstract type PotentialPrototype end
-
-"""
-    initialize(prototype::AbstractOperator, operator::PotentialPrototype)
-
-Use the information in `prototype` and `operator` to construct an appropriate term to be
-added to the operator.
-"""
-initialize
-
-function Base.:+(ham::AbstractOperator, proto::PotentialPrototype)
-    base = base_hamiltonian(ham)
-    if isnothing(base)
-        throw(ArgumentError("No Hamiltonian found in sum!"))
-    end
-    term = initialize(proto, base)
-    # TODO give term a nice print method somehow
-    return ham + term
-end
-
-"""
     MomPotentialFunction(v, potential)
 
 Function that when combined with [`FullOneBodyTerm`](@ref) acts as a potential in momentum
@@ -103,28 +49,27 @@ vector of real numbers whose length matches the number of components in the Hami
 
 Can be used with both real and momentum space Hamiltonians.
 """
-struct HarmonicPotential{V} <: PotentialPrototype
+struct HarmonicPotential{V} <: ExtensionPrototype
     v_ho::V
 end
 
 function initialize(hp::HarmonicPotential, ham)
-    add = starting_address(ham)
-    M = num_modes(add)
-    v_ho = ParameterColumnFunction(add, hp.v_ho)
+    address = starting_address(ham)
+    M = num_modes(address)
+    v_ho = ParameterColumnFunction(address, hp.v_ho)
 
-    if is_mom_space(ham)
+    if basis(ham) ≡ MomentumSpace()
         fun = MomPotentialFunction(v_ho, momentum_space_harmonic_potential(M, 1))
-        return FullOneBodyTerm(add, fun)
-    elseif is_real_space(ham)
+        return FullOneBodyTerm(fun)
+    elseif basis(ham) ≡ RealSpace()
         is = range(-fld(M, 2); length=M) # [-M÷2, M÷2) including left boundary
         js = shift_lattice(is) # shifted such that js[1] = 0
         potential = SVector{M}(float.(js).^2)
         fun = RealPotentialFunction(v_ho, potential)
-        return ParticleCountTerm(add, fun)
+        return ParticleCountTerm(fun)
     else
         throw(ArgumentError(
-            "Hamiltonian is neither real nor momentum space. " *
-            "Define `is_mom_space` or `is_real_space`?"
+            "Basis `$(basis(ham))` is not compatible with `HarmonicPotential`"
         ))
     end
 end
@@ -137,19 +82,20 @@ vector of real numbers whose length matches the number of components in the Hami
 
 Can be used with both real and momentum space Hamiltonians.
 """
-struct DeltaPotential{V} <: PotentialPrototype
+struct DeltaPotential{V} <: ExtensionPrototype
     v::V
 end
 
 function initialize(dp::DeltaPotential, ham)
-    add = starting_address(ham)
-    M = num_modes(add)
-    v = to_parameter_vector(add, dp.v)
-    if is_mom_space(ham)
-        add = starting_address(ham)
-        term = FullOneBodyTerm(add, ParameterColumnFunction(add, v ./ M))
+    address = starting_address(ham)
+    M = num_modes(address)
+    v = to_parameter_vector(address, dp.v)
+    if basis(ham) ≡ MomentumSpace()
+        term = FullOneBodyTerm(ParameterColumnFunction(address, v ./ M))
     else
-        throw(ArgumentError("real space delta potential not implemented"))
+        throw(ArgumentError(
+            "Basis `$(basis(ham))` is not compatible with `DeltaPotential`"
+        ))
     end
 end
 
@@ -217,7 +163,7 @@ The `cutoff` defaults to the cutoff of the Hamiltonian is attached to, or 1.
 
 Can only be used with momentum space Hamiltonians.
 """
-struct TranscorrelatedDeltaPotential{V,C} <: PotentialPrototype
+struct TranscorrelatedDeltaPotential{V,C} <: ExtensionPrototype
     v::V
     cutoff::C
     two_body_term::Bool
@@ -227,9 +173,9 @@ function TranscorrelatedDeltaPotential(v; cutoff=nothing, two_body_term=false)
 end
 
 function initialize(tcd::TranscorrelatedDeltaPotential, ham)
-    if is_mom_space(ham)
-        add = starting_address(ham)
-        M = num_modes(add)
+    if basis(ham) ≡ MomentumSpace()
+        address = starting_address(ham)
+        M = num_modes(address)
         t = only(ham.t)
         u = only(ham.u)
         if ham isa Transcorrelated
@@ -237,15 +183,17 @@ function initialize(tcd::TranscorrelatedDeltaPotential, ham)
         else
             cutoff = isnothing(tcd.cutoff) ? 1 : tcd.cutoff
         end
-        v = ParameterColumnFunction(add, tcd.v)
+        v = ParameterColumnFunction(address, tcd.v)
 
-        term = FullOneBodyTerm(add, TCDeltaFunctionOneBody(M, cutoff, v, t))
+        term = FullOneBodyTerm(TCDeltaFunctionOneBody(M, cutoff, v, t))
         if tcd.two_body_term
-            return term + FullTwoBodyTerm(add, TCDeltaFunctionTwoBody(M, cutoff, v, u, t))
+            return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t))
         else
             return term
         end
     else
-        throw(ArgumentError("TranscorrelatedDeltaPotential only works in momentum space."))
+        throw(ArgumentError(
+            "Basis `$(basis(ham))` is not compatible with `TranscorrelatedDeltaPotential`"
+        ))
     end
 end

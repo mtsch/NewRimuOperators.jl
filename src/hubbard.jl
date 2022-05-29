@@ -1,10 +1,9 @@
-# TODO: add trait for momspace
-struct Hubbard{A,N,K,I} <: Hamiltonian{A,Float64}
+struct Hubbard{A,B,N,O<:AbstractOperator{Float64}} <: Hamiltonian{A,Float64}
     address::A
+    basis::B
     u::SMatrix{N,N,Float64}
     t::SVector{N,Float64}
-    kinetic_term::K
-    interaction_term::I
+    terms::O
 end
 
 function Hubbard(
@@ -14,8 +13,11 @@ function Hubbard(
     momentum=true,
     dispersion=hubbard_dispersion,
 )
+    basis = momentum ? MomentumSpace() : RealSpace()
+
     C = num_components(address)
     M = num_modes(address)
+    # TODO here
     if u isa AbstractMatrix
         # Check that matrix is well-formed
         size(u) == (C, C) || throw(ArgumentError("`u` must be a $C×$C matrix or a scalar"))
@@ -27,28 +29,25 @@ function Hubbard(
     end
     # Create appropriate terms
     if momentum
-        kinetic_term = ParticleCountTerm(
-            address, KineticEnergyFunction(address, t, dispersion)
-        )
-        interaction_term = MomentumTwoBodyTerm(
-            address, InteractionMatrixFunction(us ./ M); fold=true
-        )
+        kinetic_term = ParticleCountTerm(KineticEnergyFunction(address, t, dispersion))
+        interaction_term = MomentumTwoBodyTerm(InteractionMatrixFunction(us./M); fold=true)
     else
         if dispersion ≢ hubbard_dispersion
             throw(ArgumentError("setting dispersion is not supported in real space"))
         end
-        kinetic_term = NeighbourOneBodyTerm(address, ParameterColumnFunction(address, t))
-        interaction_term = OnsiteInteractionTerm(address, InteractionMatrixFunction(us))
+        kinetic_term = NeighbourOneBodyTerm(ParameterColumnFunction(address, t))
+        interaction_term = OnsiteInteractionTerm(InteractionMatrixFunction(us))
     end
+    terms = kinetic_term + interaction_term
 
-    return Hubbard(address, us, to_parameter_vector(address, t), kinetic_term, interaction_term)
+    return Hubbard(address, basis, us, to_parameter_vector(address, t), terms)
 end
 
 function Base.show(io::IO, h::Hubbard)
     print(io, "Hubbard(")
     print(IOContext(io, :compact => true), h.address)
     print(io, ", u=$(h.u), t=$(h.t)")
-    if h.kinetic_term isa ParticleCountTerm
+    if basis(h) ≡ MomentumSpace()
         print(io, ", momentum=true)")
     else
         print(io, ", momentum=false)")
@@ -57,8 +56,5 @@ end
 
 starting_address(h::Hubbard) = h.address
 LOStructure(::Hubbard) = IsHermitian()
-terms(h::Hubbard) = h.kinetic_term + h.interaction_term
-
-# TODO: do with a trait
-is_mom_space(h::Hubbard) = h.kinetic_term isa ParticleCountTerm
-is_real_space(h::Hubbard) = h.kinetic_term isa NeighbourOneBodyTerm
+terms(h::Hubbard) = h.terms
+basis(h::Hubbard) = h.basis

@@ -50,6 +50,7 @@ include("abstract.jl")
 include("column.jl")
 include("sum.jl")
 include("terms.jl")
+include("extensions.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")

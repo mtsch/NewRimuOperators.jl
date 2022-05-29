@@ -60,17 +60,16 @@ function (q_fun::QFunction{M})(_, _, k, l) where {M}
     return -u^2/(t * M^2) * cor_k * cor_l
 end
 
-struct Transcorrelated{A,K,I} <: Hamiltonian{A,Float64}
+struct Transcorrelated{A,O} <: Hamiltonian{A,Float64}
     address::A
     t::Float64
     u::Float64
     cutoff::Int
     three_body_term::Bool
-    kinetic_term::K
-    interaction_term::I
+    terms::O
 end
 
-function Transcorrelated(address; t::Real=1, u::Real=1, cutoff=1, three_body_term=true)
+function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_body_term=true)
     M = num_modes(address)
     C = num_components(address)
 
@@ -78,16 +77,14 @@ function Transcorrelated(address; t::Real=1, u::Real=1, cutoff=1, three_body_ter
 
     ts = @SVector fill(float(t), C)
     kinetic_term = ParticleCountTerm(
-        address, KineticEnergyFunction(address, ts, continuum_dispersion)
+        KineticEnergyFunction(address, ts, continuum_dispersion)
     )
-    interaction_term = MomentumTwoBodyTerm(address, t_fun; fold=false)
+    interaction_term = MomentumTwoBodyTerm(t_fun; fold=false)
     if three_body_term
-        interaction_term += MomentumThreeBodyTerm(address, QFunction(M, cutoff, t, u))
+        interaction_term += MomentumThreeBodyTerm(QFunction(M, cutoff, t, u))
     end
-    return Transcorrelated(
-        address, Float64(t), Float64(u), cutoff, three_body_term,
-        kinetic_term, interaction_term,
-    )
+    terms = kinetic_term + interaction_term
+    return Transcorrelated(address, Float64(t), Float64(u), cutoff, three_body_term, terms)
 end
 
 function Base.show(io::IO, h::Transcorrelated)
@@ -96,15 +93,14 @@ function Base.show(io::IO, h::Transcorrelated)
     print(io, "; t=$(h.t), u=$(h.u), cutoff=$(h.cutoff), three_body_term=$(h.three_body_term))")
 end
 
-terms(h::Transcorrelated) = h.interaction_term + h.kinetic_term
+terms(h::Transcorrelated) = h.terms
 
 starting_address(h::Transcorrelated) = h.address
 LOStructure(::Transcorrelated) = AdjointKnown()
 function Base.adjoint(h::Transcorrelated)
     return Transcorrelated(
-        h.address, h.t, h.u, h.cutoff,
-        h.three_body_term, adjoint(h.interaction_term), h.kinetic_term
+        h.address, h.t, h.u, h.cutoff, h.three_body_term, adjoint(h.terms)
     )
 end
 
-is_mom_space(::Transcorrelated) = true
+basis(::Transcorrelated) = MomentumSpace()

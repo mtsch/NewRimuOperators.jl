@@ -1,5 +1,16 @@
+abstract type AbstractTerm{T} <: AbstractOperator{T} end
+
+term_type(op) = typeof(op)
+term_type(t::AbstractTerm) = throw(ArgumentError("`term_type(::$(typeof(t)))` not defined"))
+
+# TODO Workaround to be removed later
+function Rimu.BasisSetRep(term::AbstractTerm, add)
+    sm, basis = Rimu.Hamiltonians.build_sparse_matrix_from_LO(term, add; nnzs=0)
+    BasisSetRep(sm, basis, term)
+end
+
 """
-    ParticleCountTerm(address, fun)
+    ParticleCountTerm(fun)
 
 The particle count term:
 
@@ -9,16 +20,16 @@ The particle count term:
 
 where ``f`` is the `fun`, ``σ`` the spin (component) index, and ``p`` the mode.
 """
-struct ParticleCountTerm{A,F,T<:Real} <: AbstractOperator{A,T}
-    address::A
+struct ParticleCountTerm{F,T<:Real} <: AbstractTerm{T}
     fun::F
 end
-function ParticleCountTerm(address::A, fun::F) where {A,F}
+function ParticleCountTerm(fun::F) where {F}
     T = float(typeof(fun(1, 1)))
-    return ParticleCountTerm{A,F,T}(address, fun)
+    return ParticleCountTerm{F,T}(fun)
 end
 
-starting_address(op::ParticleCountTerm) = op.address
+term_type(::ParticleCountTerm) = ParticleCountTerm
+
 CompositeAction(::ParticleCountTerm) = NoCompositeAction()
 LOStructure(::ParticleCountTerm) = IsHermitian()
 
@@ -31,7 +42,7 @@ function diagonal_element(op::ParticleCountTerm, address, map, comp=1)
 end
 
 """
-     OnsiteInteraction(address, fun)
+     OnsiteInteraction(fun)
 
 The onsite interaciton term:
 
@@ -41,16 +52,16 @@ The onsite interaciton term:
 
 where ``f`` is the `fun`, ``σ`` and ``τ`` the spin (component) indices, and ``p`` the mode.
 """
-struct OnsiteInteractionTerm{A,F,T<:Real} <: AbstractOperator{A,T}
-    address::A
+struct OnsiteInteractionTerm{F,T<:Real} <: AbstractTerm{T}
     fun::F
 end
-function OnsiteInteractionTerm(address::A, fun::F) where {A,F}
+function OnsiteInteractionTerm(fun::F) where {F}
     T = float(typeof(fun(1, 1)))
-    return OnsiteInteractionTerm{A,F,T}(address, fun)
+    return OnsiteInteractionTerm{F,T}(fun)
 end
 
-starting_address(op::OnsiteInteractionTerm) = op.address
+term_type(::OnsiteInteractionTerm) = OnsiteInteractionTerm
+
 CompositeAction(::OnsiteInteractionTerm) = OneWayCompositeAction()
 LOStructure(::OnsiteInteractionTerm) = IsDiagonal()
 
@@ -84,7 +95,7 @@ function diagonal_element(op::OnsiteInteractionTerm, _, _, map_a, map_b, (c_a, c
 end
 
 """
-    NeighbourOneBodyTerm(address, fun)
+    NeighbourOneBodyTerm(fun)
 
 The neighbour hopping term in 1D:
 
@@ -94,16 +105,16 @@ The neighbour hopping term in 1D:
 
 where ``f`` is the `fun` and ``sigma`` the spin component index.
 """
-struct NeighbourOneBodyTerm{A,F,T<:Real} <: AbstractOperator{A,T}
-    address::A
+struct NeighbourOneBodyTerm{F,T<:Real} <: AbstractTerm{T}
     fun::F
 end
-function NeighbourOneBodyTerm(address::A, fun::F) where {A,F}
+function NeighbourOneBodyTerm(fun::F) where {F}
     T = float(typeof(fun(1)))
-    return NeighbourOneBodyTerm{A,F,T}(address, fun)
+    return NeighbourOneBodyTerm{F,T}(fun)
 end
 
-starting_address(op::NeighbourOneBodyTerm) = op.address
+term_type(::NeighbourOneBodyTerm) = NeighbourOneBodyTerm
+
 CompositeAction(::NeighbourOneBodyTerm) = NoCompositeAction()
 LOStructure(::NeighbourOneBodyTerm) = IsDiagonal()
 
@@ -125,7 +136,7 @@ function get_offdiagonal(op::NeighbourOneBodyTerm, add, map, i, comp=1)
 end
 
 """
-    FullOneBodyTerm(address, fun)
+    FullOneBodyTerm(fun)
 
 The full one-body term:
 
@@ -136,20 +147,20 @@ The full one-body term:
 where ``f`` is the `fun`, ``σ`` the spin (component) index, and ``p``, ``q`` the source and
 target modes.
 """
-struct FullOneBodyTerm{A,F,T,ADJ} <: AbstractOperator{A,T}
-    address::A
+struct FullOneBodyTerm{F,T,ADJ} <: AbstractTerm{T}
     fun::F
 end
-function FullOneBodyTerm(address::A, fun::F) where {A,F}
+function FullOneBodyTerm(fun::F) where {F}
     T = float(typeof(fun(1, 1, 1)))
-    return FullOneBodyTerm{A,F,T,false}(address, fun)
+    return FullOneBodyTerm{F,T,false}(fun)
 end
 
-starting_address(op::FullOneBodyTerm) = op.address
+term_type(::FullOneBodyTerm) = FullOneBodyTerm
+
 CompositeAction(::FullOneBodyTerm) = NoCompositeAction()
 
 # TODO: break this out or find a way to signal that the function is Hermitian?
-function LOStructure(op::FullOneBodyTerm{<:Any,F}) where {F}
+function LOStructure(op::FullOneBodyTerm{F}) where {F}
     if F <: ConstFunction{<:Real} || F <: ParameterColumnFunction{<:Any,<:Real}
         return IsHermitian()
     else
@@ -157,10 +168,10 @@ function LOStructure(op::FullOneBodyTerm{<:Any,F}) where {F}
     end
 end
 
-isadjoint(::FullOneBodyTerm{<:Any,<:Any,<:Any,ADJ}) where {ADJ} = ADJ
+isadjoint(::FullOneBodyTerm{<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
-function Base.adjoint(op::FullOneBodyTerm{A,F,T,ADJ}) where {A,F,T,ADJ}
-    FullOneBodyTerm{A,F,T,!ADJ}(op.address, op.fun)
+function Base.adjoint(op::FullOneBodyTerm{F,T,Adjoint}) where {F,T,Adjoint}
+    FullOneBodyTerm{F,T,!Adjoint}(op.fun)
 end
 
 num_offdiagonals(::FullOneBodyTerm, add, map) = length(map) * (num_modes(add) - 1)
@@ -191,7 +202,7 @@ function get_offdiagonal(op::FullOneBodyTerm, add, map, i, comp=1)
 end
 
 """
-    MomentumTwoBodyTerm(address, f; fold=true)
+    MomentumTwoBodyTerm(f; fold=true)
 
 The momentum transfer term:
 
@@ -204,23 +215,23 @@ integer mode indices.
 
 If `fold` is set, transfers that would go out of the Brillouin zone are folded back in.
 """
-struct MomentumTwoBodyTerm{A,T,F,Fold,Adjoint} <: AbstractOperator{A,T}
-    address::A
+struct MomentumTwoBodyTerm{F,T,Fold,Adjoint} <: AbstractTerm{T}
     fun::F
 end
-function MomentumTwoBodyTerm(address::A, fun::F; fold=true) where {A,F}
+function MomentumTwoBodyTerm(fun::F; fold=true) where {F}
     T = float(typeof(fun(1, 1, 1, 1, 1)))
-    return MomentumTwoBodyTerm{A,T,F,fold,false}(address, fun)
+    return MomentumTwoBodyTerm{F,T,fold,false}(fun)
 end
-function MomentumTwoBodyTerm(address, val::Number=1; kwargs...)
-    return MomentumTwoBodyTerm(address, ConstFunction(float(val)); kwargs...)
+function MomentumTwoBodyTerm(val::Number=1; kwargs...)
+    return MomentumTwoBodyTerm(ConstFunction(float(val)); kwargs...)
 end
 
-_fold(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,F}) where {F} = F
-isadjoint(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,<:Any,A}) where {A} = A
+term_type(::MomentumTwoBodyTerm) = MomentumTwoBodyTerm
+_fold(::MomentumTwoBodyTerm{<:Any,<:Any,Fold}) where {Fold} = Fold
+isadjoint(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
 function Base.show(io::IO, op::MomentumTwoBodyTerm)
-    print(IOContext(io, :compact => true), "MomentumTwoBodyTerm(", op.address, ")")
+    print(IOContext(io, :compact => true), "MomentumTwoBodyTerm(")
     if op.fun isa ConstFunction
         print(io, "$(op.fun.value);")
     else
@@ -229,7 +240,6 @@ function Base.show(io::IO, op::MomentumTwoBodyTerm)
     print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op))")
 end
 
-starting_address(op::MomentumTwoBodyTerm) = op.address
 CompositeAction(::MomentumTwoBodyTerm) = OneWayCompositeAction()
 
 function LOStructure(::MomentumTwoBodyTerm{F}) where {F}
@@ -239,8 +249,8 @@ function LOStructure(::MomentumTwoBodyTerm{F}) where {F}
         return AdjointKnown()
     end
 end
-function Base.adjoint(op::MomentumTwoBodyTerm{A,T,F,FLD,ADJ}) where {A,T,F,FLD,ADJ}
-    return MomentumTwoBodyTerm{A,T,F,FLD,!ADJ}(op.address, op.fun)
+function Base.adjoint(op::MomentumTwoBodyTerm{F,T,Fold,Adjoint}) where {F,T,Fold,Adjoint}
+    return MomentumTwoBodyTerm{F,T,Fold,!Adjoint}(op.fun)
 end
 
 # Signle bosonic component
@@ -320,7 +330,7 @@ function diagonal_element(op::MomentumTwoBodyTerm, _, _, map_a, map_b, (c_a, c_b
 end
 
 """
-    FullTwoBodyTerm(address, fun)
+    FullTwoBodyTerm(fun)
 
 ```math
 \\sum_{σ,τ,p,q,r,s} f(σ,τ,p,q,r,s)
@@ -332,20 +342,19 @@ modes.
 
 If ``σ = τ`` and the component is fermionic, this term produces no elements.
 """
-struct FullTwoBodyTerm{A,F,T,ADJ} <: AbstractOperator{A,T}
-    address::A
+struct FullTwoBodyTerm{F,T,Adjoint} <: AbstractTerm{T}
     fun::F
 end
-function FullTwoBodyTerm(address::A, fun::F) where {A,F}
+function FullTwoBodyTerm(fun::F) where {F}
     T = float(typeof(fun(1,1,1,1,1,1)))
-    return FullTwoBodyTerm{A,F,T,false}(address, fun)
+    return FullTwoBodyTerm{F,T,false}(fun)
 end
 
-_fold(::FullTwoBodyTerm{<:Any,<:Any,<:Any,F}) where {F} = F
-isadjoint(::FullTwoBodyTerm{<:Any,<:Any,<:Any,A}) where {A} = A
+term_type(::FullTwoBodyTerm) = FullTwoBodyTerm
+isadjoint(::FullTwoBodyTerm{<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
 function Base.show(io::IO, op::FullTwoBodyTerm)
-    print(IOContext(io, :compact => true), "FullTwoBodyTerm(", op.address, ", ")
+    print(IOContext(io, :compact => true), "FullTwoBodyTerm(")
     if op.fun isa ConstFunction
         print(io, "$(op.fun.value); ")
     else
@@ -354,25 +363,24 @@ function Base.show(io::IO, op::FullTwoBodyTerm)
     print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op)))")
 end
 
-starting_address(op::FullTwoBodyTerm) = op.address
 CompositeAction(::FullTwoBodyTerm) = OneWayCompositeAction()
 
-function LOStructure(::FullTwoBodyTerm{<:Any,F}) where {F}
+function LOStructure(::FullTwoBodyTerm{F}) where {F}
     if F <: ConstFunction{<:Real} || F <: InteractionMatrixFunction{<:Any,<:Real}
         return IsHermitian()
     else
         return AdjointKnown()
     end
 end
-function Base.adjoint(op::FullTwoBodyTerm{A,T,F,ADJ}) where {A,T,F,ADJ}
-    return FullTwoBodyTerm{A,T,F,!ADJ}(op.address, op.fun)
+function Base.adjoint(op::FullTwoBodyTerm{T,F,Adjoint}) where {T,F,Adjoint}
+    return FullTwoBodyTerm{T,F,!Adjoint}(op.fun)
 end
 
 # TODO: Signle bosonic component not implemented
 
 # Single fermionic component has no contributions.
 num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map, comp=1) = 0
-diagonal_element(::FullTwoBodyTerm{<:Any,<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
+diagonal_element(::FullTwoBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
 
 function full_two_body_excitation(add_a, add_b, i, map_a, map_b)
     N1 = length(map_a)
@@ -425,7 +433,7 @@ end
 using Rimu.Hamiltonians: transcorrelated_three_body_excitation
 
 """
-    MomentumThreeBodyTerm(address, fun)
+    MomentumThreeBodyTerm(fun)
 
 The momentum-preserving three body term:
 
@@ -439,32 +447,28 @@ Where...
 
 TODO: make `f` accept `p`, `q`, and `s`?
 """
-struct MomentumThreeBodyTerm{A,T,F} <: AbstractOperator{A,T}
-    address::A
+struct MomentumThreeBodyTerm{T,F,Adjoint} <: AbstractTerm{T}
     fun::F
-    fold::Bool
-    isadjoint::Bool
 end
 
-function MomentumThreeBodyTerm(address, fun; fold=false, isadjoint=false)
+function MomentumThreeBodyTerm(fun; fold=false, isadjoint=false)
     if fold
         throw(ArgumentError("folding three body terms not implemented"))
     end
     T = float(typeof(fun(1, 1, 1, 1)))
-    return MomentumThreeBodyTerm{typeof(address),T,typeof(fun)}(
-        address, fun, fold, isadjoint
-    )
+    return MomentumThreeBodyTerm{T,typeof(fun),isadjoint}(fun)
 end
 
-starting_address(op::MomentumThreeBodyTerm) = op.address
-LOStructure(::MomentumThreeBodyTerm) = IsHermitian()
+term_type(::MomentumThreeBodyTerm) = MomentumThreeBodyTerm
+
+LOStructure(::MomentumThreeBodyTerm) = IsHermitian() # TODO: or is it?
 CompositeAction(::MomentumThreeBodyTerm) = TwoWayCompositeAction()
 
 # Single bosonic component not implemented
 
 # Single fermionic component has no contributions
 num_offdiagonals(::MomentumThreeBodyTerm, ::FermiFS, _) = 0
-diagonal_element(::MomentumThreeBodyTerm{<:Any,T}, ::FermiFS, map, c=1) where {T} = zero(T)
+diagonal_element(::MomentumThreeBodyTerm{T}, ::FermiFS, map, c=1) where {T} = zero(T)
 
 # Cross-component part
 function num_offdiagonals(::MomentumThreeBodyTerm, add_a, add_b, map_a, map_b)

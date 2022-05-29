@@ -23,7 +23,7 @@ Default implementation of [`AbstractColumn`](@ref). Defined in terms of
 [`diagonal_element`](@ref), [`get_offdiagonal`](@ref), and [`num_offdiagonals`](@ref)
 of the operator.
 """
-struct Column{A,T,O<:AbstractOperator{A,T},M} <: AbstractColumn{A,T}
+struct Column{A,T,O<:AbstractOperator{T},M} <: AbstractColumn{A,T}
     operator::O
     address::A
     map::M
@@ -34,7 +34,7 @@ num_offdiagonals(col::Column) = num_offdiagonals(col.operator, col.address, col.
 
 Base.show(io::IO, col::Column) = print(io, "column(", col.operator, ", ", col.address, ")")
 
-function column(op::AbstractOperator{A}, add::A) where {A}
+function column(op::AbstractOperator, add::A) where {A}
     map = OccupiedModeMap(add)
     return Column(op, add, map)
 end
@@ -45,18 +45,17 @@ end
 Base.size(od::ColOffdiagonals) = (num_offdiagonals(od.column),)
 Base.getindex(od::ColOffdiagonals, i) = get_offdiagonal(od.column, i)
 
-# TODO: name
 """
     CompositeColumn
 
 Column for an operator with a [`CompositeFS`](@ref) address.
 """
-struct CompositeColumn{N,A,T,O<:AbstractOperator{A,T},M} <: AbstractColumn{A,T}
+struct CompositeColumn{N,A,T,O<:AbstractOperator{T},M} <: AbstractColumn{A,T}
     operator::O
     address::A
     maps::M
 end
-function column(op::AbstractOperator{A,T}, add::A) where {N,A<:CompositeFS{N},T}
+function column(op::AbstractOperator{T}, add::A) where {N,A<:CompositeFS{N},T}
     maps = map(OccupiedModeMap, add.components)
     return CompositeColumn{N,A,T,typeof(op),typeof(maps)}(op, add, maps)
 end
