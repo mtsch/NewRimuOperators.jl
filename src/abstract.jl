@@ -29,7 +29,7 @@ abstract type CompositeAction end
 """
     OneWayCompositeAction
 
-Operator acts symmetrically across terms.
+Operator acts symmetrically across components.
 
 In other words, `excitation(op, add_a, add_b)` also performs `excitation(op, add_b, add_a)`
 implicitly.
@@ -38,7 +38,7 @@ struct OneWayCompositeAction <: CompositeAction end
 """
     TwoWayCompositeAction
 
-Operator acts differently across terms depending on direction.
+Operator acts differently across components depending on direction.
 
 In other words, both `excitation(op, add_a, add_b)` and `excitation(op, add_b, add_a)` must
 be called separately to get the full effect.
@@ -48,7 +48,7 @@ struct TwoWayCompositeAction <: CompositeAction end
 """
     NoCompositeAction
 
-Operator does not act across terms.
+Operator does not act across components.
 
 In other words, `excitation(op, add_a, add_b) = 0`.
 """

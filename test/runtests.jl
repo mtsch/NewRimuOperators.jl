@@ -8,5 +8,4 @@ include("rimucompat.jl")
 include("terms.jl")
 
 @testset "Potentials" begin
-
 end
