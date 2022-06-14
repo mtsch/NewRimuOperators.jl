@@ -136,21 +136,22 @@ end
 The function used in the two-body term of the transcorrelated delta function potential.
 """
 struct TCDeltaFunctionTwoBody{M,V}
+    num_modes::Int
     corr::CorrelationFactor{M}
     v::V
     u::Float64
     t::Float64
     magic_factor::Float64
 end
-function TCDeltaFunctionTwoBody(M, cutoff, v::V, u, t, magic_factor) where {V}
-    TCDeltaFunctionTwoBody(CorrelationFactor(M, cutoff; length=2M), v, u, t, magic_factor)
+function TCDeltaFunctionTwoBody(M, cutoff, v::V, u, t) where {V}
+    TCDeltaFunctionTwoBody(M, CorrelationFactor(M, cutoff; length=2M), v, u, t)
 end
 
-function (d::TCDeltaFunctionTwoBody{M})(σ, τ, s, r, q, p) where {M}
-    u = d.u; v = d.v; t = d.t; corr = d.corr
+function (d::TCDeltaFunctionTwoBody)(σ, τ, s, r, q, p)
+    M = d.num_modes; u = d.u; v = d.v; t = d.t; corr = d.corr
     result_στ = (v(σ) * corr(p + q - r - s) * corr(r - q))
     result_τσ = (v(τ) * corr(p + q - r - s) * corr(s - p))
-    return d.magic_factor * u/(t*M^2) * (result_στ + result_τσ)
+    return 4u/(t*M^2) * (result_στ + result_τσ)
 end
 
 """
