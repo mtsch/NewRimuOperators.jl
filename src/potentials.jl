@@ -141,9 +141,8 @@ struct TCDeltaFunctionTwoBody{M,V}
     v::V
     u::Float64
     t::Float64
-    magic_factor::Float64
 end
-function TCDeltaFunctionTwoBody(M, cutoff, v::V, u, t) where {V}
+function TCDeltaFunctionTwoBody(M, cutoff::Int, v::V, u, t) where {V}
     TCDeltaFunctionTwoBody(M, CorrelationFactor(M, cutoff; length=2M), v, u, t)
 end
 
@@ -169,10 +168,9 @@ struct TranscorrelatedDeltaPotential{V,C} <: ExtensionPrototype
     v::V
     cutoff::C
     two_body_term::Bool
-    magic_factor::Float64
 end
-function TranscorrelatedDeltaPotential(v; cutoff=nothing, two_body_term=false, magic_factor=16)
-    return TranscorrelatedDeltaPotential(v, cutoff, two_body_term, float(magic_factor))
+function TranscorrelatedDeltaPotential(v; cutoff=nothing, two_body_term=false)
+    return TranscorrelatedDeltaPotential(v, cutoff, two_body_term)
 end
 
 function initialize(tcd::TranscorrelatedDeltaPotential, ham)
@@ -190,7 +188,7 @@ function initialize(tcd::TranscorrelatedDeltaPotential, ham)
 
         term = FullOneBodyTerm(TCDeltaFunctionOneBody(M, cutoff, v, t))
         if tcd.two_body_term
-            return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t, tcd.magic_factor))
+            return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t))
         else
             return term
         end
