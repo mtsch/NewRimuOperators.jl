@@ -360,7 +360,6 @@ function Base.show(io::IO, op::FullTwoBodyTerm)
     else
         print(io, "$(op.fun); ")
     end
-    print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op)))")
 end
 
 CompositeAction(::FullTwoBodyTerm) = OneWayCompositeAction()
@@ -401,7 +400,7 @@ end
 # Cross-component part
 function num_offdiagonals(::FullTwoBodyTerm, add_a, add_b, map_a, map_b)
     M = num_modes(add_a)
-    return length(map_a) * length(map_b) * (M - 1) * (M - 1)
+    return length(map_a) * length(map_b) * M * M
 end
 function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_a, c_b))
     new_add_a, new_add_b, val, p, q, r, s = full_two_body_excitation(
