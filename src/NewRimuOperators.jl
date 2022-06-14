@@ -1,26 +1,21 @@
 # TODO:
 
-# terms.jl:
+# terms.jl: [idea in progress]
 # How to handle adjoints? Most of the time, the terms will be Hermitian, but some of the
 # times, they are not. In some cases it works well (e.g. `MomentumTwoBodyTerm`), but adding
 # the option for all terms would be annoying at best.
 # Perhaps the "functions" you pass to the terms could know whether permuting their arguments
 # changes anything - this way the terms would know what structure they have.
 
-# sum.jl:
+# Add a function "modifier" that makes it adjoint. Could probably use a standard way to
+# write the functions (one per N-body excitation).
+
+# sum.jl: [in progress]
 # Idea: summing should merge like terms (e.g. summing a harmonic potential with a delta
 # potential should be able to merge the `FullOneBodyTerm`s.
 
-# abstract.jl:
-# Idea: perhaps the type hirearchy should be reworked a bit. These terms don't really need
-# to know the starting address. Hamiltonians could still be required to provide them.
-# A potential (or more general Hamiltonian addon) could inherit the starting address from
-# the Hamiltonian it's being added to.
-
-# abstract.jl:
-# Idea: add IsDiagonal to LOStructure. Then they can be skipped when generating
-# offdiagonals. Another option would be to add IsSymmetric, which would provide an adjoint
-# implementation.
+# Having values in SVectors in ParameterColumnFunction et al hurts performance even if
+# length is 1. This is not too bad, but it would be nice to avoid.
 
 
 module NewRimuOperators
@@ -48,8 +43,8 @@ export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 include("utilities.jl")
 include("abstract.jl")
 include("column.jl")
-include("sum.jl")
 include("terms.jl")
+include("sum.jl")
 include("extensions.jl")
 
 include("hubbard.jl")

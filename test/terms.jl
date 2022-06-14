@@ -93,6 +93,7 @@ using NewRimuOperators:
         )
         term = FullTwoBodyTerm((σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s))
         @test_broken good_structure(term, add)
+
     end
 
     @testset "MomentumThreeBodyTerm" begin
@@ -102,5 +103,4 @@ using NewRimuOperators:
         )
         term = MomentumThreeBodyTerm((σ,τ,k,l) -> σ * τ * (k + l))
     end
-
 end

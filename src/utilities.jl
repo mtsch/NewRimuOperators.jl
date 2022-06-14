@@ -16,17 +16,12 @@ end
 """
     ConstFunction(x)
 
-Construct a function that returns `x` for all arguments.
+Function that returns `x` for all arguments. Equivalent to `(args...) -> x`.
 """
 struct ConstFunction{T}
     value::T
 end
 (c::ConstFunction)(args...; kwargs...) = c.value
-
-struct InteractionMatrixFunction{N,T,M<:SMatrix{N,N,T}}
-    values::M
-end
-(imf::InteractionMatrixFunction)(i, j, args...) = imf.values[i, j]
 
 function to_parameter_vector(address, t::Number)
     C = num_components(address)
@@ -38,16 +33,38 @@ function to_parameter_vector(address, t)
     return SVector{C}(float.(t))
 end
 
+"""
+     parameter_column(add, t)
+
+Create a parameter column and check that it matches the address `add`. Returns
+`ConstFunction` if length of `t` is 1 and [`ParameterColumnFunction`](@ref) otherwise.
+"""
+function parameter_column(add, t)
+    C = num_components(add)
+    if length(t) == 1
+        return ConstFunction(first(t))
+    elseif C == length(t)
+        return ParameterColumnFunction(SVector{C}(t))
+    else
+        throw(ArgumentError(
+            "Length of `$t` does not match number of components in address"
+        ))
+    end
+end
+
+"""
+    ParameterColumnFunction(values::SVector)
+
+Wrapper over `SVector` that turns function calls into `getindex` calls, i.e. `pf(i) =
+pf.values[i]`.
+"""
 struct ParameterColumnFunction{N,T}
     values::SVector{N,T}
 end
-function ParameterColumnFunction(address, t)
-    return ParameterColumnFunction(to_parameter_vector(address, t))
-end
 (pcf::ParameterColumnFunction)(i, args...) = pcf.values[i]
 
-struct KineticEnergyFunction{K,M}
-    t::SVector{K,Float64}
+struct KineticEnergyFunction{M,T}
+    t::T
     kes::SVector{M,Float64}
 end
 
@@ -62,6 +79,34 @@ function KineticEnergyFunction(address, t, dispersion)
     kr = range(start; step=step, length=M)
     ks = SVector{M}(kr)
     kes = SVector{M}(dispersion.(kr))
-    return KineticEnergyFunction(to_parameter_vector(address, t), kes)
+    return KineticEnergyFunction(parameter_column(address, t), kes)
 end
-(ke::KineticEnergyFunction)(σ, p) = ke.kes[p] * ke.t[σ]
+(ke::KineticEnergyFunction)(σ, p) = ke.kes[p] * ke.t(σ)
+
+
+function interaction_matrix(add, u)
+    C = num_components(add)
+    if length(u) == 1
+        return ConstFunction(first(u))
+    elseif length(u) == C * C
+        matrix = SMatrix{C, C}(u)
+        issymmetric(matrix) || throw(ArgumentError("interaction matrix must be symmetric"))
+        Rimu.Hamiltonians.warn_fermi_interaction(add, matrix)
+        return InteractionMatrixFunction(matrix)
+    else
+        throw(ArgumentError(
+            "Length of `$u` does not match number of components in address"
+        ))
+    end
+end
+
+"""
+    InteractionMatrixFunction(SMatrix)
+
+Wrapper over square `SMatrix` that turns function calls into `getindex` calls, i.e. `imf(i,
+j) = imf.values[i, j]`.
+"""
+struct InteractionMatrixFunction{N,T,M<:SMatrix{N,N,T}}
+    values::M
+end
+(imf::InteractionMatrixFunction)(i, j, args...) = imf.values[i, j]

@@ -17,7 +17,7 @@ struct MomPotentialFunction{M,V}
     v::V
     potential::SVector{M,Float64}
 end
-function (f::MomPotentialFunction{M})(σ, p, q) where {M}
+@inbounds function (f::MomPotentialFunction{M})(σ, p, q) where {M}
     return f.v(σ) * f.potential[mod(p - q, M) + 1]
 end
 
@@ -56,7 +56,7 @@ end
 function initialize(hp::HarmonicPotential, ham)
     address = starting_address(ham)
     M = num_modes(address)
-    v_ho = ParameterColumnFunction(address, hp.v_ho)
+    v_ho = parameter_column(address, hp.v_ho)
 
     if basis(ham) ≡ MomentumSpace()
         fun = MomPotentialFunction(v_ho, momentum_space_harmonic_potential(M, 1))
@@ -91,7 +91,7 @@ function initialize(dp::DeltaPotential, ham)
     M = num_modes(address)
     v = to_parameter_vector(address, dp.v)
     if basis(ham) ≡ MomentumSpace()
-        term = FullOneBodyTerm(ParameterColumnFunction(address, v ./ M))
+        term = FullOneBodyTerm(parameter_column(address, v ./ M))
     else
         throw(ArgumentError(
             "Basis `$(basis(ham))` is not compatible with `DeltaPotential`"
@@ -140,16 +140,17 @@ struct TCDeltaFunctionTwoBody{M,V}
     v::V
     u::Float64
     t::Float64
+    magic_factor::Float64
 end
-function TCDeltaFunctionTwoBody(M, cutoff, v::V, u, t) where {V}
-    TCDeltaFunctionTwoBody(CorrelationFactor(M, cutoff; length=2M), v, u, t)
+function TCDeltaFunctionTwoBody(M, cutoff, v::V, u, t, magic_factor) where {V}
+    TCDeltaFunctionTwoBody(CorrelationFactor(M, cutoff; length=2M), v, u, t, magic_factor)
 end
 
 function (d::TCDeltaFunctionTwoBody{M})(σ, τ, s, r, q, p) where {M}
     u = d.u; v = d.v; t = d.t; corr = d.corr
     result_στ = (v(σ) * corr(p + q - r - s) * corr(r - q))
     result_τσ = (v(τ) * corr(p + q - r - s) * corr(s - p))
-    return 16u/(t*M^2) * (result_στ + result_τσ)
+    return d.magic_factor * u/(t*M^2) * (result_στ + result_τσ)
 end
 
 """
@@ -167,9 +168,10 @@ struct TranscorrelatedDeltaPotential{V,C} <: ExtensionPrototype
     v::V
     cutoff::C
     two_body_term::Bool
+    magic_factor::Float64
 end
-function TranscorrelatedDeltaPotential(v; cutoff=nothing, two_body_term=false)
-    return TranscorrelatedDeltaPotential(v, cutoff, two_body_term)
+function TranscorrelatedDeltaPotential(v; cutoff=nothing, two_body_term=false, magic_factor=16)
+    return TranscorrelatedDeltaPotential(v, cutoff, two_body_term, float(magic_factor))
 end
 
 function initialize(tcd::TranscorrelatedDeltaPotential, ham)
@@ -183,11 +185,11 @@ function initialize(tcd::TranscorrelatedDeltaPotential, ham)
         else
             cutoff = isnothing(tcd.cutoff) ? 1 : tcd.cutoff
         end
-        v = ParameterColumnFunction(address, tcd.v)
+        v = parameter_column(address, tcd.v)
 
         term = FullOneBodyTerm(TCDeltaFunctionOneBody(M, cutoff, v, t))
         if tcd.two_body_term
-            return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t))
+            return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t, tcd.magic_factor))
         else
             return term
         end

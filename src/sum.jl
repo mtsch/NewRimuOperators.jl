@@ -1,3 +1,7 @@
+"""
+
+
+"""
 struct OperatorSum{T,L<:AbstractOperator,R<:AbstractOperator} <: AbstractOperator{T}
     left::L
     right::R
@@ -9,7 +13,6 @@ end
 
 Base.show(io::IO, op::OperatorSum) = print(io, op.left, " + ", op.right)
 
-Base.:+(left::AbstractOperator, right::AbstractOperator) = OperatorSum(left, right)
 
 LOStructure(op::OperatorSum) = combine_structure(LOStructure(op.left), LOStructure(op.right))
 combine_structure(::IsHermitian, ::IsHermitian) = IsHermitian()
@@ -20,6 +23,12 @@ combine_structure(_, _) = AdjointUnknown()
 
 Base.adjoint(op::OperatorSum) = adjoint(op.left) + adjoint(op.right)
 
+# Default cases.
+Base.:+(left::AbstractOperator, right::AbstractOperator) = OperatorSum(left, right)
+
+###
+### Columns
+###
 struct OperatorSumColumn{
     A,T,L<:AbstractColumn{A,T},R<:AbstractColumn{A,T}
 } <: AbstractColumn{A,T}
