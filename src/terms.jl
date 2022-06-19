@@ -2,6 +2,10 @@
 
 abstract type AbstractTerm{T} <: AbstractOperator{T} end
 
+function Base.show(io::IO, op::AbstractTerm)
+    print(io, nameof(typeof(op)))
+end
+
 term_type(op) = typeof(op)
 term_type(t::AbstractTerm) = throw(ArgumentError("`term_type(::$(typeof(t)))` not defined"))
 
@@ -158,7 +162,6 @@ function FullOneBodyTerm(fun::F) where {F}
 end
 
 term_type(::FullOneBodyTerm) = FullOneBodyTerm
-
 CompositeAction(::FullOneBodyTerm) = NoCompositeAction()
 
 # TODO: break this out or find a way to signal that the function is Hermitian?
@@ -232,15 +235,15 @@ term_type(::MomentumTwoBodyTerm) = MomentumTwoBodyTerm
 _fold(::MomentumTwoBodyTerm{<:Any,<:Any,Fold}) where {Fold} = Fold
 isadjoint(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
-function Base.show(io::IO, op::MomentumTwoBodyTerm)
-    print(IOContext(io, :compact => true), "MomentumTwoBodyTerm(")
-    if op.fun isa ConstFunction
-        print(io, "$(op.fun.value);")
-    else
-        print(io, "$(op.fun);")
-    end
-    print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op))")
-end
+#function Base.show(io::IO, op::MomentumTwoBodyTerm)
+#    print(IOContext(io, :compact => true), "MomentumTwoBodyTerm(")
+#    if op.fun isa ConstFunction
+#        print(io, "$(op.fun.value);")
+#    else
+#        print(io, "$(nameof(typeof(op.fun)));")
+#    end
+#    print(io, "fold=$(_fold(op)), isadjoint=$(isadjoint(op))")
+#end
 
 CompositeAction(::MomentumTwoBodyTerm) = OneWayCompositeAction()
 
@@ -356,15 +359,15 @@ end
 term_type(::FullTwoBodyTerm) = FullTwoBodyTerm
 isadjoint(::FullTwoBodyTerm{<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
-function Base.show(io::IO, op::FullTwoBodyTerm)
-    print(IOContext(io, :compact => true), "FullTwoBodyTerm(")
-    if op.fun isa ConstFunction
-        print(io, "$(op.fun.value); ")
-    else
-        print(io, "$(op.fun); ")
-    end
-    print(io, "isadjoint=$(isadjoint(op)))")
-end
+#function Base.show(io::IO, op::FullTwoBodyTerm)
+#    print(IOContext(io, :compact => true), "FullTwoBodyTerm(")
+#    if op.fun isa ConstFunction
+#        print(io, "$(op.fun.value); ")
+#    else
+#        print(io, "$(op.fun); ")
+#    end
+#    print(io, "isadjoint=$(isadjoint(op)))")
+#end
 
 CompositeAction(::FullTwoBodyTerm) = OneWayCompositeAction()
 
