@@ -69,7 +69,7 @@ struct Transcorrelated{A,O} <: Hamiltonian{A,Float64}
     terms::O
 end
 
-function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_body_term=true)
+function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_body_term=true, fold=false)
     M = num_modes(address)
     C = num_components(address)
 
@@ -79,7 +79,7 @@ function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_bod
     kinetic_term = ParticleCountTerm(
         KineticEnergyFunction(address, ts, continuum_dispersion)
     )
-    interaction_term = MomentumTwoBodyTerm(t_fun; fold=false)
+    interaction_term = MomentumTwoBodyTerm(t_fun; fold)
     if three_body_term
         interaction_term += MomentumThreeBodyTerm(QFunction(M, cutoff, t, u))
     end

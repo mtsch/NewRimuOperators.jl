@@ -187,7 +187,7 @@ function initialize(tcd::TranscorrelatedDeltaPotential, ham)
         v = parameter_column(address, tcd.v)
 
         term = FullOneBodyTerm(TCDeltaFunctionOneBody(M, cutoff, v, t))
-        if tcd.two_body_term
+        if tcd.two_body_term && u ≠ 0
             return term + FullTwoBodyTerm(TCDeltaFunctionTwoBody(M, cutoff, v, u, t))
         else
             return term

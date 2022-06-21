@@ -12,6 +12,7 @@ function Hubbard(
     t::Union{AbstractVector{<:Real},Real}=1.0,
     momentum=true,
     dispersion=hubbard_dispersion,
+    fold=true,
 )
     basis = momentum ? MomentumSpace() : RealSpace()
 
@@ -19,7 +20,7 @@ function Hubbard(
     if momentum
         M = num_modes(address)
         kinetic_term = ParticleCountTerm(KineticEnergyFunction(address, t, dispersion))
-        interaction_term = MomentumTwoBodyTerm(interaction_matrix(address, u ./ M); fold=true)
+        interaction_term = MomentumTwoBodyTerm(interaction_matrix(address, u ./ M); fold)
     else
         if dispersion ≢ hubbard_dispersion
             throw(ArgumentError("setting dispersion is not supported in real space"))
