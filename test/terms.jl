@@ -22,14 +22,6 @@ using NewRimuOperators:
         return true
     end
 
-    function good_structure(term, add)
-        if LOStructure(term) == IsHermitian() || LOStructure(term) == IsDiagonal()
-            return ishermitian(Matrix(term, add))
-        elseif LOStructure(term) == AdjointKnown()
-            return Matrix(term, add)' == Matrix(term', add)
-        end
-    end
-
     @testset "ParticleCountTerm" begin
         add = CompositeFS(
             BoseFS((0, 1, 2, 0)),
@@ -38,7 +30,6 @@ using NewRimuOperators:
         term = ParticleCountTerm((σ, p) -> σ * p)
         @test length(offdiagonals(term, add)) == 0
         @test diagonal_element(term, add) == 2 + 6 + 2 * (1 + 2)
-        @test good_structure(term, add)
     end
 
     @testset "OnsiteInteractionTerm" begin
@@ -49,7 +40,6 @@ using NewRimuOperators:
         term = OnsiteInteractionTerm((σ, τ) -> σ == τ ? 10 : 2)
         @test length(offdiagonals(term, add)) == 0
         @test diagonal_element(term, add) == 30 + 2 * (1 + 3)
-        @test good_structure(term, add)
     end
 
     @testset "NeighbourOneBodyTerm" begin
@@ -61,7 +51,6 @@ using NewRimuOperators:
         @test length(offdiagonals(term, add)) == 2 + 6
         @test one_component_changed_or_zero(term, add)
         @test diagonal_element(term, add) == 0
-        @test good_structure(term, add)
     end
 
     @testset "FullOneBodyTerm" begin
@@ -73,7 +62,6 @@ using NewRimuOperators:
         @test num_offdiagonals(term, add) == 3 * 3
         @test diagonal_element(term, add) == 14 - 7im
         @test one_component_changed_or_zero(term, add)
-        @test good_structure(term, add)
     end
 
     @testset "MomentumTwoBodyTerm" begin
@@ -82,8 +70,6 @@ using NewRimuOperators:
             FermiFS((1, 1, 0, 0)),
         )
         term = MomentumTwoBodyTerm((σ,τ,p,q,k) -> σ * τ * mod1(k,num_modes(add)) + (p - q))
-        # Broken with bosons due to how momentum_transfer_excitation is implemented.
-        @test_broken good_structure(term, add)
     end
 
     @testset "FullTwoBodyTerm" begin
@@ -92,8 +78,6 @@ using NewRimuOperators:
             FermiFS((1, 1, 0, 0, 0, 0)),
         )
         term = FullTwoBodyTerm((σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s))
-        @test_broken good_structure(term, add)
-
     end
 
     @testset "MomentumThreeBodyTerm" begin
