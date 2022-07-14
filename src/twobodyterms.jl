@@ -99,20 +99,76 @@ function num_offdiagonals(::MomentumTwoBodyTerm, bs::BoseFS, map)
     singlies = length(map)
     doublies = count(i -> i.occnum ≥ 2, map)
     M = num_modes(bs)
-    return singlies * (singlies - 1) * (M - 2) + doublies * (M - 1)
+    return singlies * (singlies - 1) ÷ 2 * (M - 2) + doublies * (M ÷ 2)
 end
 
-function get_offdiagonal(op::MomentumTwoBodyTerm, bs::BoseFS, map, i, comp=1)
-    new_add, val, p, q, k = momentum_transfer_excitation(bs, i, map; fold=_fold(op))
-    val = if !isadjoint(op)
-        op.fun(comp, comp, p, q, k) * val
+function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp=1)
+    M = num_modes(add)
+    singlies = length(map)
+    double = chosen - (singlies * (singlies - 1) ÷ 2) * (M - 2)
+    if double > 0
+        src_index, mom_change = fldmod1(double, fld(M, 2))
+        p, _ = pick_multiply_occupied_mode(add, map, src_index, 2)
+        r_mode = p.mode - mom_change
+        s_mode = p.mode + mom_change
+
+        # Folding
+        r_fold = r_mode ≤ 0
+        s_fold = s_mode > M
+        if !_fold(op) && (r_fold || s_fold)
+            return add, zero(eltype(op))
+        else
+            r_mode += M * r_fold
+            s_mode -= M * s_fold
+
+            r = find_mode(add, s_mode)
+            s = find_mode(add, r_mode)
+
+            new_add, value = excitation(add, (s,r), (p,p))
+            if r_mode ≠ s_mode && (!r_fold  || !s_fold)
+                value *= 2
+            end
+            if isadjoint(op)
+                k = mom_change
+                fun_value = conj(
+                    op.fun(comp, comp, p.mode - k, p.mode + k, -mom_change) +
+                    op.fun(comp, comp, p.mode + k, p.mode - k, k)
+                )
+            else
+                fun_value = op.fun(comp, comp, p.mode, p.mode, mom_change) +
+                    op.fun(comp, comp, p.mode, p.mode, -mom_change)
+            end
+            return new_add, fun_value * value / 4
+        end
     else
-        error("adjoint is not supported for bosons")
-        conj(op.fun(comp, comp, q + k, p - k, -k)) * val
-    end
+        src_index, dst_index = fldmod1(chosen, M - 2)
+        fst, snd = index_to_sorted_pair(src_index)
+        p, q = (map[fst], map[snd])
+        r = pick_mode_avoiding_sources(add, map, dst_index, (p.mode, q.mode))
+        mom_change = q.mode - r.mode
 
-    return new_add, val/2
+        s_mode = p.mode + mom_change
+        if !_fold(op) && !(0 < s_mode ≤ M)
+            return add, 0.0, 0, 0, 0
+        else
+            s = find_mode(add, mod1(p.mode + mom_change, M))
+        end
+        new_add, value = excitation(add, (s,r), (q,p))
+
+        if isadjoint(op)
+            k = mom_change
+            fun_value = conj(
+                op.fun(comp, comp, p.mode - k, q.mode + k, -k) +
+                op.fun(comp, comp, q.mode + k, p.mode - k, k)
+            )
+        else
+            fun_value = op.fun(comp, comp, p.mode, q.mode, mom_change) +
+                op.fun(comp, comp, q.mode, p.mode, -mom_change)
+        end
+        return new_add, fun_value * value / 2
+    end
 end
+
 function diagonal_element(op::MomentumTwoBodyTerm, bs::BoseFS, map, comp=1)
     onproduct_zero = zero(eltype(op))
     onproduct_nonzero = zero(eltype(op))
@@ -143,14 +199,41 @@ function num_offdiagonals(::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b)
     M = num_modes(add_a)
     return length(map_a) * length(map_b) * (M - 1)
 end
-function get_offdiagonal(op::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_a, c_b))
-    new_add_a, new_add_b, val, p, q, k = momentum_transfer_excitation(
-        add_a, add_b, i, map_a, map_b, fold=_fold(op)
-    )
+function get_offdiagonal(
+    op::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b, chosen, (c_a, c_b)
+)
+    M = num_modes(add_a)
+    p, remainder = fldmod1(chosen, (M - 1) * length(map_b))
+    s_mode, q = fldmod1(remainder, length(map_b))
+
+    p_index = map_a[p]
+    p_mode = p_index.mode
+    s_mode += s_mode ≥ p_mode # avoid putting the particle in an occupied site
+
+    mom_change = p_mode - s_mode
+
+    q_index = map_b[q]
+    q_mode = q_index.mode
+    r_mode = q_mode + mom_change
+
+    if _fold(op)
+        s_mode = mod1(s_mode, M)
+        r_mode = mod1(r_mode, M) # enforce periodic boundary condition
+    elseif !(0 < s_mode ≤ M) || !(0 < r_mode ≤ M)
+        return add_a, add_b, zero(eltype(op))
+    end
+
+    s_index = find_mode(add_a, s_mode)
+    r_index = find_mode(add_b, r_mode)
+
+    new_add_a, val_a = excitation(add_a, (s_index,), (p_index,))
+    new_add_b, val_b = excitation(add_b, (r_index,), (q_index,))
+
     val = if !isadjoint(op)
-        op.fun(c_a, c_b, p, q, k) * val
+        op.fun(c_a, c_b, p_mode, q_mode, mom_change) * val_a * val_b
     else
-        conj(op.fun(c_b, c_a, p - k, q + k, -k)) * val
+        conj(op.fun(c_b, c_a, p_mode - mom_change, q_mode + mom_change, -mom_change)) *
+            val_a * val_b
     end
     return new_add_a, new_add_b, val
 end

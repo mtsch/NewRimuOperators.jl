@@ -44,10 +44,13 @@ export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 include("utilities.jl")
 include("abstract.jl")
 include("terms.jl")
+include("termcolumns.jl")
+
+include("excitationhelpers.jl")
 include("onebodyterms.jl")
 include("twobodyterms.jl")
 include("threebodyterms.jl")
-include("termcolumns.jl")
+
 include("sum.jl")
 include("extensions.jl")
 
