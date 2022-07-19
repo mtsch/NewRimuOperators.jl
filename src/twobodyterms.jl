@@ -1,4 +1,50 @@
 """
+    two_body_diagonal(op, map, comp)
+
+Diagonal contribution from two-body term, where the particles are either swapped or stay
+still. This is the same for the full two-body term and the momentum preserving two-body
+term.
+"""
+function two_body_diagonal(op, map, comp)
+    onproduct_zero = zero(eltype(op))
+    onproduct_nonzero = zero(eltype(op))
+    for i in 1:length(map)
+        occ_i = map[i].occnum
+        p = map[i].mode
+        onproduct_zero += occ_i * (occ_i - 1) * op.fun(comp, comp, p, p, p, p)
+        for j in 1:i-1
+            occ_j = map[j].occnum
+            q = map[j].mode
+            k = p - q
+            onproduct_nonzero += (
+                op.fun(comp, comp, p, q, p, q) +
+                op.fun(comp, comp, q, p, q, p)
+            ) * 2 * occ_i * occ_j
+        end
+    end
+    if isadjoint(op)
+        return conj(onproduct_zero + onproduct_nonzero) / 2
+    else
+        return (onproduct_zero + onproduct_nonzero) / 2
+    end
+end
+function two_body_diagonal(op, map_a, map_b, (c_a, c_b))
+    onproduct = zero(eltype(op))
+    for i in map_a
+        for j in map_b
+            p = i.mode
+            q = j.mode
+            onproduct += op.fun(c_a, c_b, p, q, q, p) * i.occnum * j.occnum
+        end
+    end
+    if !isadjoint(op)
+        return onproduct
+    else
+        return conj(onproduct)
+    end
+end
+
+"""
      OnsiteInteraction(fun)
 
 The onsite interaciton term:
@@ -68,11 +114,11 @@ end
 The momentum transfer term:
 
 ```math
-\\sum_{σ,τ,p,q,k} f(σ,τ,p,q,k) a^†_{p + k,σ} a^†{q - k,τ} a_{q,τ} a_{p,σ}
+\\sum_{σ,τ,p,q,k} f(σ,τ,p,q,q+k,p-k) a^†_{p - k,σ} a^†{q + k,τ} a_{q,τ} a_{p,σ}
 ```
 
-In the sum above, ``σ`` and ``τ`` are spin indices, while ``p``, ``q``, and ``k`` are
-integer mode indices.
+In the sum above, ``σ`` and ``τ`` are spin indices, while ``p``, ``q``, ``q+k``, and ``p-k``
+are integer mode indices.
 
 If `fold` is set, transfers that would go out of the Brillouin zone are folded back in.
 """
@@ -80,13 +126,14 @@ struct MomentumTwoBodyTerm{F,T,Fold,Adjoint} <: AbstractTerm{T,2}
     fun::F
 end
 function MomentumTwoBodyTerm(fun::F; fold=true) where {F}
-    T = float(typeof(fun(1, 1, 1, 1, 1)))
+    T = float(typeof(fun(1, 1, 1, 1, 1, 1)))
     return MomentumTwoBodyTerm{F,T,fold,false}(fun)
 end
 function MomentumTwoBodyTerm(val::Number=1; kwargs...)
     return MomentumTwoBodyTerm(ConstFunction(float(val)); kwargs...)
 end
 
+LOStructure(::MomentumTwoBodyTerm) = AdjointKnown()
 _fold(::MomentumTwoBodyTerm{<:Any,<:Any,Fold}) where {Fold} = Fold
 isadjoint(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
@@ -95,10 +142,10 @@ function Base.adjoint(op::MomentumTwoBodyTerm{F,T,Fold,Adjoint}) where {F,T,Fold
 end
 
 # Signle bosonic component
-function num_offdiagonals(::MomentumTwoBodyTerm, bs::BoseFS, map)
+function num_offdiagonals(::MomentumTwoBodyTerm, add::BoseFS, map)
     singlies = length(map)
     doublies = count(i -> i.occnum ≥ 2, map)
-    M = num_modes(bs)
+    M = num_modes(add)
     return singlies * (singlies - 1) ÷ 2 * (M - 2) + doublies * (M ÷ 2)
 end
 
@@ -128,15 +175,16 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
             if r_mode ≠ s_mode && (!r_fold  || !s_fold)
                 value *= 2
             end
-            if isadjoint(op)
-                k = mom_change
-                fun_value = conj(
-                    op.fun(comp, comp, p.mode - k, p.mode + k, -mom_change) +
-                    op.fun(comp, comp, p.mode + k, p.mode - k, k)
+            if !isadjoint(op)
+                fun_value = (
+                    op.fun(comp, comp, p.mode, p.mode, r.mode, s.mode) +
+                    op.fun(comp, comp, p.mode, p.mode, s.mode, r.mode)
                 )
             else
-                fun_value = op.fun(comp, comp, p.mode, p.mode, mom_change) +
-                    op.fun(comp, comp, p.mode, p.mode, -mom_change)
+                fun_value = conj(
+                    op.fun(comp, comp, r.mode, s.mode, p.mode, p.mode) +
+                    op.fun(comp, comp, s.mode, r.mode, p.mode, p.mode)
+                )
             end
             return new_add, fun_value * value / 4
         end
@@ -147,47 +195,33 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
         r = pick_mode_avoiding_sources(add, map, dst_index, (p.mode, q.mode))
         mom_change = q.mode - r.mode
 
+        # check if current selection folds. if it does, try again?
         s_mode = p.mode + mom_change
         if !_fold(op) && !(0 < s_mode ≤ M)
             return add, 0.0, 0, 0, 0
         else
             s = find_mode(add, mod1(p.mode + mom_change, M))
         end
+
         new_add, value = excitation(add, (s,r), (q,p))
 
-        if isadjoint(op)
-            k = mom_change
-            fun_value = conj(
-                op.fun(comp, comp, p.mode - k, q.mode + k, -k) +
-                op.fun(comp, comp, q.mode + k, p.mode - k, k)
+        if !isadjoint(op)
+            fun_value = (
+                op.fun(comp, comp, p.mode, q.mode, r.mode, s.mode) +
+                op.fun(comp, comp, q.mode, p.mode, s.mode, r.mode)
             )
         else
-            fun_value = op.fun(comp, comp, p.mode, q.mode, mom_change) +
-                op.fun(comp, comp, q.mode, p.mode, -mom_change)
+            fun_value = conj(
+                op.fun(comp, comp, s.mode, r.mode, q.mode, p.mode) +
+                op.fun(comp, comp, r.mode, s.mode, p.mode, q.mode)
+            )
         end
         return new_add, fun_value * value / 2
     end
 end
 
-function diagonal_element(op::MomentumTwoBodyTerm, bs::BoseFS, map, comp=1)
-    onproduct_zero = zero(eltype(op))
-    onproduct_nonzero = zero(eltype(op))
-    for i in 1:length(map)
-        occ_i = map[i].occnum
-        p = map[i].mode
-        onproduct_zero += occ_i * (occ_i - 1) * op.fun(comp, comp, p, p, 0)
-        for j in 1:i-1
-            occ_j = map[j].occnum
-            q = map[j].mode
-            k = p - q
-            onproduct_nonzero += op.fun(comp, comp, p, q, k) * 4 * occ_i * occ_j
-        end
-    end
-    if isadjoint(op)
-        return conj(onproduct_zero + onproduct_nonzero) / 2
-    else
-        return (onproduct_zero + onproduct_nonzero) / 2
-    end
+function diagonal_element(op::MomentumTwoBodyTerm, ::BoseFS, map, comp=1)
+    return two_body_diagonal(op, map, comp)
 end
 
 # Single fermionic component has no contributions.
@@ -229,29 +263,21 @@ function get_offdiagonal(
     new_add_a, val_a = excitation(add_a, (s_index,), (p_index,))
     new_add_b, val_b = excitation(add_b, (r_index,), (q_index,))
 
-    val = if !isadjoint(op)
-        op.fun(c_a, c_b, p_mode, q_mode, mom_change) * val_a * val_b
+    if !isadjoint(op)
+        fun_val = (
+            op.fun(c_a, c_b, p_mode, q_mode, r_mode, s_mode) +
+            op.fun(c_b, c_a, q_mode, p_mode, s_mode, r_mode)
+        ) / 2
     else
-        conj(op.fun(c_b, c_a, p_mode - mom_change, q_mode + mom_change, -mom_change)) *
-            val_a * val_b
+        fun_val = conj(
+            op.fun(c_a, c_b, s_mode, r_mode, q_mode, p_mode) +
+            op.fun(c_b, c_a, r_mode, s_mode, p_mode, q_mode)
+        ) / 2
     end
-    return new_add_a, new_add_b, val
+    return new_add_a, new_add_b, fun_val * val_a * val_b
 end
-function diagonal_element(op::MomentumTwoBodyTerm, _, _, map_a, map_b, (c_a, c_b))
-    onproduct_zero = 0.0
-    onproduct_nonzero = 0.0
-    for i in 1:length(map_a)
-        occ_i = map_a[i].occnum
-        p = map_a[i].mode
-        for j in 1:length(map_b)
-            occ_j = map_b[j].occnum
-            q = map_b[j].mode
-            onproduct_nonzero += (
-                (op.fun(c_a, c_b, p, q, 0) + op.fun(c_b, c_a, q, p, 0))/2 * occ_i * occ_j
-            )
-        end
-    end
-    return onproduct_nonzero
+function diagonal_element(op::MomentumTwoBodyTerm, _, _, map_a, map_b, comps)
+    return two_body_diagonal(op, map_a, map_b, comps)
 end
 
 """
@@ -265,7 +291,7 @@ end
 where ``f`` is the `fun`, ``σ`` and ``tau`` the spin component indices, and ``p,q,r,s`` the
 modes.
 
-If ``σ = τ`` and the component is fermionic, this term produces no elements.
+If ``σ = τ`` and the component is fermionic, this term produces no offdiagonals.
 """
 struct FullTwoBodyTerm{F,T,Adjoint} <: AbstractTerm{T,2}
     fun::F
@@ -275,20 +301,70 @@ function FullTwoBodyTerm(fun::F) where {F}
     return FullTwoBodyTerm{F,T,false}(fun)
 end
 
-isadjoint(::FullTwoBodyTerm{<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
-
+LOStructure(::FullTwoBodyTerm) = AdjointKnown()
+isadjoint(::FullTwoBodyTerm{<:Any,<:Any,A}) where {A} = A
 function Base.adjoint(op::FullTwoBodyTerm{T,F,Adjoint}) where {T,F,Adjoint}
     return FullTwoBodyTerm{T,F,!Adjoint}(op.fun)
 end
 
-# TODO: Signle bosonic component not implemented
+function num_offdiagonals(::FullTwoBodyTerm, add::BoseFS, map)
+    singlies = length(map)
+    doublies = count(i -> i.occnum ≥ 2, map)
+    M = num_modes(add)
+    return M * (M + 1) ÷ 2 * (doublies + singlies * (singlies - 1) ÷ 2)
+end
+function get_offdiagonal(op::FullTwoBodyTerm, add::BoseFS, map, chosen, comp=1)
+    M = num_modes(add)
+    singlies = length(map)
+    double = chosen - (singlies * (singlies - 1) ÷ 2) * M^2
+    if double > 0
+        src_index, dst_index = fldmod1(double, M * (M + 1) ÷ 2)
+        p, _ = pick_multiply_occupied_mode(add, map, src_index, 2)
+        q = p
+    else
+        src_index, dst_index = fldmod1(double, M * (M + 1) ÷ 2)
+        fst, snd = index_to_sorted_pair(src_index)
+        p, q = (map[fst], map[snd])
+    end
+    # Subtracting 1 from s picks duplicates as well
+    r_mode, s_mode = index_to_sorted_pair(dst_index)
+    s_mode -= 1
+    r, s = find_mode(add, (r_mode, s_mode))
+    new_add, val = excitation(add, (s,r), (q,p))
+
+    if new_add == add
+        fun_val = zero(eltype(op))
+    elseif !isadjoint(op)
+        fun_val = (
+            op.fun(comp, comp, p.mode, q.mode, r.mode, s.mode) +
+            op.fun(comp, comp, p.mode, q.mode, s.mode, r.mode) +
+            op.fun(comp, comp, q.mode, p.mode, r.mode, s.mode) +
+            op.fun(comp, comp, q.mode, p.mode, s.mode, r.mode)
+        )
+    else
+        fun_val = conj(
+            op.fun(comp, comp, s.mode, r.mode, q.mode, p.mode) +
+            op.fun(comp, comp, r.mode, s.mode, q.mode, p.mode) +
+            op.fun(comp, comp, s.mode, r.mode, p.mode, q.mode) +
+            op.fun(comp, comp, r.mode, s.mode, p.mode, q.mode)
+        )
+    end
+    return new_add, fun_val * val
+end
+function diagonal_element(op::FullTwoBodyTerm, ::BoseFS, map, comp=1)
+    return two_body_diagonal(op, map, comp)
+end
 
 # Single fermionic component has no contributions.
-num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map, comp=1) = 0
+num_offdiagonals(::FullTwoBodyTerm, ::FermiFS, map) = 0
 diagonal_element(::FullTwoBodyTerm{<:Any,T}, ::FermiFS, _, _) where {T} = zero(T)
 
-function full_two_body_excitation(add_a, add_b, i, map_a, map_b)
-    # TODO missing one-body term
+# Cross-component part
+function num_offdiagonals(::FullTwoBodyTerm, add_a, add_b, map_a, map_b)
+    M = num_modes(add_a)
+    return length(map_a) * length(map_b) * M * M
+end
+function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_a, c_b))
     N1 = length(map_a)
     N2 = length(map_b)
     M = num_modes(add_a)
@@ -301,39 +377,15 @@ function full_two_body_excitation(add_a, add_b, i, map_a, map_b)
     new_add_a, val_a = excitation(add_a, (s_index,), (p_index,))
     new_add_b, val_b = excitation(add_b, (r_index,), (q_index,))
 
-    return new_add_a, new_add_b, val_a * val_b, p_index.mode, q_index.mode, r, s
-end
-
-# Cross-component part
-function num_offdiagonals(::FullTwoBodyTerm, add_a, add_b, map_a, map_b)
-    M = num_modes(add_a)
-    return length(map_a) * length(map_b) * M * M
-end
-function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_a, c_b))
-    new_add_a, new_add_b, val, p, q, r, s = full_two_body_excitation(
-        add_a, add_b, i, map_a, map_b,
-    )
-    val = if !isadjoint(op)
-        op.fun(c_a, c_b, p, q, r, s) * val
+    if new_add_a == add_a && new_add_b == add_b
+        fun_val = zero(eltype(op))
+    elseif !isadjoint(op)
+        fun_val = op.fun(c_a, c_b, p_index.mode, q_index.mode, r, s)
     else
-        error("TODO")
-        #conj(op.fun(c_b, c_a, r, s, p, q)) * val ?
+        fun_val = conj(op.fun(c_a, c_b, s, r, q_index.mode, p_index.mode))
     end
-    return new_add_a, new_add_b, val
+    return new_add_a, new_add_b, fun_val * val_a * val_b
 end
-function diagonal_element(
-    op::FullTwoBodyTerm, _, _, map_a, map_b, (c_a, c_b)
-)
-    # This is equivalent to ∑_{p,q} fun(σ,τ,p,q,q,p) n_{p,σ} n_{q,τ}
-    onproduct = zero(eltype(op))
-    for i in map_a
-        for j in map_b
-            p = i.mode
-            q = j.mode
-            onproduct += op.fun(c_a, c_b, p, q, q, p) * i.occnum * j.occnum
-        end
-    end
-    return onproduct
+function diagonal_element(op::FullTwoBodyTerm, _, _, map_a, map_b, comps)
+    return two_body_diagonal(op, map_a, map_b, comps)
 end
-
-using Rimu.Hamiltonians: transcorrelated_three_body_excitation

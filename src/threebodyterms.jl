@@ -1,3 +1,5 @@
+using Rimu.Hamiltonians: transcorrelated_three_body_excitation
+
 """
     MomentumThreeBodyTerm(fun)
 

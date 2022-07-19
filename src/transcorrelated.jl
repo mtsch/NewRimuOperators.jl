@@ -35,7 +35,8 @@ function TFunction(M, cutoff, t, u)
     correlation_factor = CorrelationFactor(M, cutoff)
     return TFunction(cutoff, float(t), float(u), correlation_factor, w)
 end
-@fastmath function (t_fun::TFunction{M})(_, _, p, q, k) where {M}
+@fastmath function (t_fun::TFunction{M})(_, _, p, q, r, s) where {M}
+    k = p - s
     t, u = t_fun.t, t_fun.u
     k_pi = n_to_k(k, M)
     pmq_pi = n_to_k(p - q, M)
