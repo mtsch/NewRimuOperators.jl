@@ -53,7 +53,9 @@ end
 function QFunction(M, cutoff, t, u)
     return QFunction{M}(cutoff, float(t), float(u), CorrelationFactor(M, cutoff))
 end
-function (q_fun::QFunction{M})(_, _, k, l) where {M}
+function (q_fun::QFunction{M})(_, _, p, q, r, s, t, u) where {M}
+    k = u - p
+    l = q - t
     t, u = q_fun.t, q_fun.u
     cor_k = q_fun.correlation_factor(k)
     cor_l = q_fun.correlation_factor(l)

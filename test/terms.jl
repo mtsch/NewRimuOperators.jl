@@ -19,10 +19,41 @@ function check_lo_structure(term, add, structure)
         @test !isdiag(mat)
         @test ishermitian(mat)
     elseif LOStructure(op) === AdjointKnown()
-        #@test !ishermitian(mat)
+        # This check is here to make sure the test is actually testing adjoints
+        @test !ishermitian(mat)
         @test mat' == Matrix(op')
     else
         @test_throws ArgumentError op'
+    end
+end
+
+function mom(add::SingleComponentFockAddress; fold=false)
+    M = num_modes(add)
+    res = 0
+    for i in OccupiedModeMap(add)
+        res += (i.mode - cld(M, 2)) * i.occnum
+    end
+    if fold
+        return mod(res, M)
+    else
+        return res
+    end
+end
+function mom(add::CompositeFS; fold=false)
+    M = num_modes(add)
+    res = sum(add.components) do fs
+        mom(fs; fold=false)
+    end
+    if fold
+        return mod(res, M)
+    else
+        return res
+    end
+end
+function preserves_momentum(term, add; fold=false)
+    m = mom(add; fold)
+    return all(BasisSetRep(SingleTermOperator(term, add)).basis) do fs
+        mom(fs; fold) == m
     end
 end
 
@@ -64,6 +95,7 @@ end
             term_real = FullOneBodyTerm((σ, q, p) -> σ == 1 ? (p - q) : (p * q))
             @test num_offdiagonals(term_real, add) == 3 * 3
             @test diagonal_element(term_real, add) == 5
+            @test !preserves_momentum(term_real, add)
             check_lo_structure(term_real, add, AdjointKnown())
 
             term_complex = FullOneBodyTerm((σ, q, p) -> σ == 1 ? (p - q * im) : (p * q + im))
@@ -93,22 +125,26 @@ end
                 FermiFS((1, 1, 0, 0)),
             )
             term_real_fold = MomentumTwoBodyTerm(
-                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s)
+                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) + p
             )
             check_lo_structure(term_real_fold, add, AdjointKnown())
+            @test !preserves_momentum(term_real_fold, add; fold=false)
+            @test preserves_momentum(term_real_fold, add; fold=true)
 
             term_complex_fold = MomentumTwoBodyTerm(
-                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) * im
+                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) + q * im
             )
             check_lo_structure(term_complex_fold, add, AdjointKnown())
 
             term_real_nofold = MomentumTwoBodyTerm(
-                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s); fold=false
+                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) * p; fold=false
             )
+            @test preserves_momentum(term_real_nofold, add; fold=false)
+            @test preserves_momentum(term_real_nofold, add; fold=true)
             check_lo_structure(term_real_nofold, add, AdjointKnown())
 
             term_complex_nofold = MomentumTwoBodyTerm(
-                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) * im; fold=false
+                (σ,τ,p,q,r,s) -> σ * τ * (p + q) + (r + s) * (p - s) + p * im; fold=false
             )
             check_lo_structure(term_complex_nofold, add, AdjointKnown())
         end
@@ -120,6 +156,7 @@ end
             )
             term_real = FullTwoBodyTerm((σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s) + p)
             check_lo_structure(term_real, add, AdjointKnown())
+            @test !preserves_momentum(term_real, add; fold=true)
 
             term_complex = FullTwoBodyTerm((σ,τ,p,q,r,s) -> σ * τ * (p + q + r + s) + p*im)
             check_lo_structure(term_complex, add, AdjointKnown())
@@ -131,6 +168,8 @@ end
             FermiFS((0, 0, 1, 0, 1, 0)),
             FermiFS((1, 1, 0, 0, 0, 0)),
         )
-        term = MomentumThreeBodyTerm((σ,τ,k,l) -> σ * τ * (k + l))
+        term = MomentumThreeBodyTerm((σ,τ,p,q,r,s,t,u) -> σ * τ * (p - u) * (q - t) * s)
+        check_lo_structure(term, add, AdjointKnown())
+        @test !preserves_momentum(term_real, add; fold=false)
     end
 end
