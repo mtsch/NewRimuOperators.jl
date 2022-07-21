@@ -1,3 +1,8 @@
+using Rimu
+using NewRimuOperators
+using LinearAlgebra
+using Arpack
+
 function sorted_sparse(ham)
     bsr = BasisSetRep(ham)
     perm = sortperm(bsr.basis)
