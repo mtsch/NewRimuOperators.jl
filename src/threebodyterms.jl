@@ -193,8 +193,8 @@ function diagonal_element(op::MomentumThreeBodyTerm, ::FermiFS, _, map_a, map_b,
             value += sum(map_b) do r
                 op.fun(c_a, c_b, p, q, r.mode, r.mode, q, p) +
                 op.fun(c_a, c_b, q, p, r.mode, r.mode, p, q) +
-                op.fun(c_a, c_b, p, q, r.mode, r.mode, p, q) +
-                op.fun(c_a, c_b, q, p, r.mode, r.mode, q, p)
+                -op.fun(c_a, c_b, p, q, r.mode, r.mode, p, q) +
+                -op.fun(c_a, c_b, q, p, r.mode, r.mode, q, p)
             end
         end
     end

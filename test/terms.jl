@@ -170,6 +170,6 @@ end
         )
         term = MomentumThreeBodyTerm((σ,τ,p,q,r,s,t,u) -> σ * τ * (p - u) * (q - t) * s)
         check_lo_structure(term, add, AdjointKnown())
-        @test !preserves_momentum(term_real, add; fold=false)
+        @test preserves_momentum(term, add; fold=false)
     end
 end
