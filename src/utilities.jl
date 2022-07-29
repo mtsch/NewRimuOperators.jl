@@ -5,11 +5,18 @@ end
 function update_component(fs::CompositeFS{2}, new_add_a, new_add_b, ::Val{2}, ::Val{1})
     return typeof(fs)(new_add_b, new_add_a)
 end
+# TODO: better way
 function update_component(
     fs::CompositeFS, new_add_a, new_add_b, ::Val{A}, ::Val{B}
 ) where {A,B}
     fs = update_component(fs, new_add_a, Val(A))
     return update_component(fs, new_add_b, Val(B))
+end
+function update_component(
+    fs::CompositeFS, new_add_a, new_add_b, ::Val{A}, ::Val{B}, ::Val{C}
+) where {A,B,C}
+    fs = update_component(fs, new_add_a, new_add_b, Val(A), Val(B))
+    return update_component(fs, new_add_c, Val(C))
 end
 
 
