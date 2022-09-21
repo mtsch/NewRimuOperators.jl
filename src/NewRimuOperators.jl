@@ -38,7 +38,8 @@ import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, 
 export ConstFunction, InteractionMatrix
 export column
 export SingleTermOperator
-export Hubbard, Transcorrelated, TranscorrelatedGeneral
+export Hubbard, Transcorrelated
+export TranscorrelatedGeneral
 export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 
 include("utilities.jl")
@@ -56,7 +57,7 @@ include("extensions.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")
-include("transcorrelatedgeneral.jl")
+include("TranscorrelatedGeneral.jl")
 include("potentials.jl")
 
 end # module
