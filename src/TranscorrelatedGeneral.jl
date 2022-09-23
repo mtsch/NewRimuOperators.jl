@@ -1,3 +1,11 @@
+# WFunction: NTuple? faster for small M. For QTensor, benchmark matrix vs compute on the fly, with precomputed correlation function
+# custom correlation functions: precompute u(k), and if possible supply closed form for W and Q, else compute them from general formulae.
+# wrappers over SArrays? I don't need this since my parameters will always be an array indexed by components
+# DONE check consistency of k from all input momenta -  already done in terms? No, I should calculate k from input p1,q1,q2,p2
+# DONE double counting factor of 2 already handled
+# combine all three-body terms into a single sum over a,b,c
+# Eq. 37: second term should be babbab or abbbba ?
+
 using Rimu.Hamiltonians: n_to_k, correlation_factor
 
 struct OneBodyJastrowFunction
@@ -15,33 +23,42 @@ end
 (Q::QTensor)(m,n) = Q.values[m,n]
 
 struct WTensor
-    values
+    values::NTuple
 end
 function WTensor()
     
 end
 (w::WTensor)(n) = w.values[abs(n) + 1]
 
-# Redundant; see KineticEnergyFunction
+# Similar to `KineticEnergyFunction`
 struct SecondDerivativeFunction
     U::SVector
     cf::TwoBodyJastrowFunction
 end
-function SecondDerivativeFunction(u, cutoff)
-    return SecondDerivativeFunction(diag(u), TwoBodyJastrowFunction(M, cutoff))
+function SecondDerivativeFunction(u, M, cutoff)
+    return SecondDerivativeFunction(diag(u)/M, TwoBodyJastrowFunction(M, cutoff))
 end
-function (f::SecondDerivativeFunction)()
-    
+function (f::SecondDerivativeFunction)(a, b, p1, q1, q2, p2)
+    k = p1 - p2
+    @assert k == q2 - q1
+    return 2 * f.U[a,b] * n_to_k(k)^2 * f.cf[k]
 end
 
 struct NonHermitianFunction
-    J::SVector
+    U::SMatrix
+    J::SMatrix
     cf::TwoBodyJastrowFunction
 end
-function NonHermitianFunction(j, cutoff)
-    return NonHermitianFunction(diag(j), TwoBodyJastrowFunction(M, cutoff))
+function NonHermitianFunction(u, j, M, cutoff)
+    return NonHermitianFunction(u/M, j, TwoBodyJastrowFunction(M, cutoff))
 end
-function (f::NonHermitianFunction)()
+function (f::NonHermitianFunction)(a, b, p1, q1, q2, p2)
+    U = f.U
+    J = f.J
+    k = p1 - p2
+    @assert k == q2 - q1
+    val = 2 * U[a,b] * n_to_k(k) * (J[a,a] * n_to_k(p1) - J[b,b] * n_to_k(q1)) / J[a,b] * f.cf[k]
+    return val
 end
 
 struct DerivativeSquaredFunction
@@ -49,27 +66,27 @@ struct DerivativeSquaredFunction
     W::WTensor
 end
 function DerivativeSquaredFunction(u, j, M, cutoff)
-    P = u.^2 ./ j / M
-    P = 2P - Diagonal(diag(P))    # double the offdiagonal terms
+    P = 2u.^2 ./ j / M  # double counting of components handled by terms
     return DerivativeSquaredFunction(P, WTensor(M, cutoff))
 end
-function (f::DerivativeSquaredFunction)(_, _, b, a, p2, q2, q1, p1)
+function (f::DerivativeSquaredFunction)(a, b, p1, q1, q2, p2)
     k = p1 - p2
-    @assert k == q2 - q1    # is this already checked?
+    @assert k == q2 - q1
     return f.P[a,b] * f.W(k)
 end
 
 struct ThreeBodyFunction
     P::SArray
-    J::SVector
-    U::SVector
     Q::QTensor
 end
 function ThreeBodyFunction(u, j, M, cutoff)
-    P = u ./ j / M
-    return ThreeBodyFunction(P, diag(j), diag(u), QTensor(M, cutoff))
+    C = size(u)[1]
+    P = zeros(C,C,C)
+    # combine u and j into one mega array
+    
+    return ThreeBodyFunction(SArray{Tuple{C,C,C}}(P), QTensor(M, cutoff))
 end
-function (f::ThreeBodyFunction)(a2, b2, c2, c1, b1, a1, p2, q2, r2, r1, q1, p1)
+function (f::ThreeBodyFunction)(a2, b2, c2, c1, b1, a1, p1, q1, r1, r2, q2, p2) # too many component indices
     if all([a1,b1,b2] .== [a2,b2,c2])
         if a1 == b1 == c1
             # intracomponent
@@ -133,16 +150,15 @@ and [Jeszenski *et al.* (2020)](https://arxiv.org/abs/2002.05987).
 # Arguments
 
 * `address`: The starting address, defines number of particles and sites.
-* `u`: A symmetric matrix of interaction strengths between particles. Diagonal (offdiagonal) 
-elements set intracomponent (intercomponent) interaction strengths. 
+* `u`: A symmetric matrix of interaction strengths between particles, corresponding to the 
+    Bose-Hubbard parameter `U`. Diagonal (offdiagonal) elements set intracomponent 
+    (intercomponent) interaction strengths. 
 * `masses`: The masses of each component, in units of an arbitrary mass ratio ``m_0``.
 * `BHJs`: Alternatively, set the Bose-Hubbard parameters `J` explicitly. Overrides `masses`.
-* `dim`: Set the dimension of the system. Defaults to 1D.
 * `cutoff`: integer `n` that sets the cutoff momentum ``k_c = 2\\pi n / M``
 * `threebodyQ`: flag to enable or disable three-body terms
 
 # See also
-
 * [`Transcorrelated1D`](@ref)
 """
 struct TranscorrelatedGeneral{A,C,D,O<:AbstractOperator{Float64}} <: Hamiltonian{A,Float64}
@@ -181,12 +197,12 @@ function TranscorrelatedGeneral(add::CompositeFS{C};
 
     # bare hamiltonian
     ke = ParticleCountTerm(KineticEnergyFunction(add, j, continuum_dispersion))
-    int = MomentumTwoBodyTerm(u ./ M; fold)
+    int = MomentumTwoBodyTerm(u / M; fold)
     bare = ke + int
 
-    # transcorrelated terms
-    d2dx2 = MomentumTwoBodyTerm(KineticEnergyFunction(add, u/M, continuum_dispersion))
-    non_herm = MomentumTwoBodyTerm(NonHermitianFunction(j, cf); fold)
+    # transcorrelated terms - combine these three functions
+    d2dx2 = MomentumTwoBodyTerm(SecondDerivativeFunction(u, M, cutoff))
+    non_herm = MomentumTwoBodyTerm(NonHermitianFunction(u, j, M, cutoff); fold)
     ddx_sq = MomentumTwoBodyTerm(DerivativeSquaredFunction(u, j, M, cutoff); fold)
 
     terms = bare + ke + d2dx2 + non_herm + ddx_sq
@@ -201,14 +217,14 @@ end
 function Base.show(io::IO, h::TranscorrelatedGeneral)
     print(io, "TranscorrelatedGeneral(")
     print(IOContext(io, :compact => true), h.address)
-    print(io, ", u=$(h.u), t=$(h.t), cutoff=$(h.cutoff), threebody=$(h.three_body_term)")
+    print(io, ", u=$(h.u), t=$(h.t), cutoff=$(h.cutoff), threebody=$(h.threebody)")
     print(io, ")")
 end
 
 starting_address(h::TranscorrelatedGeneral) = h.address
 LOStructure(::Type{<:TranscorrelatedGeneral}) = AdjointKnown()
 function Base.adjoint(h::TranscorrelatedGeneral)
-    return TranscorrelatedGeneral(h.address, h.u, h.t, h.cutoff, adjoint(h.terms), h.three_body_term)
+    return TranscorrelatedGeneral(h.address, h.u, h.t, h.cutoff, adjoint(h.terms), h.threebody)
 end
 terms(h::TranscorrelatedGeneral) = h.terms
-basis(h::TranscorrelatedGeneral) = h.basis
+basis(h::TranscorrelatedGeneral) = MomentumSpace()
