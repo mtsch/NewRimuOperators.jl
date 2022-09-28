@@ -39,7 +39,8 @@ export ConstFunction, InteractionMatrix
 export column
 export SingleTermOperator
 export Hubbard, Transcorrelated
-export TranscorrelatedGeneral, TranscorrelatedHarmonicPotential
+# export TranscorrelatedGeneral
+export TranscorrelatedPotential
 export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 
 include("utilities.jl")
@@ -57,8 +58,8 @@ include("extensions.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")
-include("TranscorrelatedGeneral.jl")
-include("TranscorrelatedHarmonicPotential.jl")
+# include("TranscorrelatedGeneral.jl")
+include("TranscorrelatedPotential.jl")
 include("potentials.jl")
 
 end # module
