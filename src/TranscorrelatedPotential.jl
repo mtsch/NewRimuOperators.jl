@@ -1,13 +1,18 @@
+# Can I add a potential within another potential?
+# i_to_k used in one-body term?
+# SFunction: leave enough room for large momenta?
+
 struct SFunction{M}
     values::SVector{M,Float64}
 end
 function SFunction(M)
-    N = 2M
+    N = 2M - isodd(M)
     dft = 2momentum_space_harmonic_potential(N, 1)
-    ks = i_to_k.(0:N-1, N)
+    ns = range(-2fld(M,2); length=N) # [-M÷2, M÷2) including left boundary
+    ks = n_to_k.(shift_lattice(ns), M)
     kvk = ks .* dft
     s = reshape([kvk .* circshift(kvk, j) for j in 0:N-1], (N,N))
-    return SFunction{M}(SVector{N}(sum(s; dim=2)))
+    return SFunction{M}(SVector{N}(sum(s; dim=1)))
 end
 (s::SFunction)(n::Int) = s.values[abs(n) + 1]
 
@@ -89,6 +94,7 @@ function initialize(tcp::TranscorrelatedPotential, ham)
         u = only(ham.u) / only(ham.t)
         
         term = FullOneBodyTerm(TCPotentialOneBody(M, v, b))
+        term = term + HarmonicPotential(v)  # can I do this here?
         
         if tcp.twobody && u ≠ 0
             cutoff = ham isa Transcorrelated ? ham.cutoff : 1
