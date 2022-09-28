@@ -13,7 +13,7 @@ function update_component(
     return update_component(fs, new_add_b, Val(B))
 end
 function update_component(
-    fs::CompositeFS, new_add_a, new_add_b, ::Val{A}, ::Val{B}, ::Val{C}
+    fs::CompositeFS, new_add_a, new_add_b, new_add_c, ::Val{A}, ::Val{B}, ::Val{C}
 ) where {A,B,C}
     fs = update_component(fs, new_add_a, new_add_b, Val(A), Val(B))
     return update_component(fs, new_add_c, Val(C))
