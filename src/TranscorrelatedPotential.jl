@@ -1,18 +1,16 @@
-# Can I add a potential within another potential?
-# i_to_k used in one-body term?
-# SFunction: leave enough room for large momenta?
-
 struct SFunction{M}
     values::SVector{M,Float64}
 end
-function SFunction(M)
-    N = 2M - isodd(M)
-    dft = 2momentum_space_harmonic_potential(N, 1)
-    ns = range(-2fld(M,2); length=N) # [-M÷2, M÷2) including left boundary
-    ks = n_to_k.(shift_lattice(ns), M)
+function SFunction(M; pad=2)
+    N = 2M - isodd(M)           # range of k
+    bigN = pad*2M - isodd(M)    # range of sum over k'
+    dft = momentum_space_harmonic_potential(bigN, pad)
+    ns = range(-bigN + isodd(M); length=bigN) # [-M, M) including left boundary
+    ks = n_to_k.(shift_lattice(ns), bigN)
     kvk = ks .* dft
-    s = reshape([kvk .* circshift(kvk, j) for j in 0:N-1], (N,N))
-    return SFunction{M}(SVector{N}(sum(s; dim=1)))
+
+    s = SVector{N}([dot(kvk, circshift(kvk, -j)) for j in 0:N-1])   # need to optimise this
+    return s
 end
 (s::SFunction)(n::Int) = s.values[abs(n) + 1]
 
@@ -27,10 +25,10 @@ struct TCPotentialOneBody{M,V}
     v::V
     b::Float64
 end
-function TCPotentialOneBody(M, v, b)
-    dft = momentum_space_harmonic_potential(M, 1)
+function TCPotentialOneBody(M, v, b, pad)
+    dft = momentum_space_harmonic_potential(2M, 2)
     corr_v = MomPotentialFunction(1, dft)
-    s = SFunction(M)
+    s = SFunction(M; pad)
     return TCPotentialOneBody(corr_v, s, v, b)
 end
 function (f::TCPotentialOneBody{M})(σ, p, q) where {M}
@@ -56,7 +54,7 @@ struct TCPotentialTwoBody{M,V}
     corr_v::MomPotentialFunction{M,Float64}
     u::Float64
 end
-function TCPotentialTwoBody(M, cutoff::Int, u)
+function TCPotentialTwoBody(M, cutoff::Int, u, pad)
     corr_u = CorrelationFactor(M, cutoff; length=2M)
     corr_v = MomPotentialFunction(1, momentum_space_harmonic_potential(M, 1))
     TCPotentialTwoBody(M, corr_u, corr_v, u)
@@ -79,10 +77,11 @@ Can only be used with momentum space Hamiltonians.
 struct TranscorrelatedPotential{V} <: ExtensionPrototype
     v::V
     b::Float64
+    pad::Int
     twobody::Bool
 end
-function TranscorrelatedPotential(v; b=1, twobody=false)
-    return TranscorrelatedPotential(v, b, twobody)
+function TranscorrelatedPotential(v; b=1, pad=2, twobody=false)
+    return TranscorrelatedPotential(v, b, pad, twobody)
 end
 
 function initialize(tcp::TranscorrelatedPotential, ham)
@@ -92,9 +91,10 @@ function initialize(tcp::TranscorrelatedPotential, ham)
         v = parameter_column(address, tcp.v)
         b = tcp.b
         u = only(ham.u) / only(ham.t)
+        pad = tcp.pad
         
-        term = FullOneBodyTerm(TCPotentialOneBody(M, v, b))
-        term = term + HarmonicPotential(v)  # can I do this here?
+        term = FullOneBodyTerm(TCPotentialOneBody(M, v, b, pad))
+        term += HarmonicPotential(v)
         
         if tcp.twobody && u ≠ 0
             cutoff = ham isa Transcorrelated ? ham.cutoff : 1
