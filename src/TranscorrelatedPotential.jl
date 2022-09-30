@@ -10,7 +10,7 @@ function SFunction(M; pad=2)
     kvk = ks .* dft
 
     s = SVector{N}([dot(kvk, circshift(kvk, -j)) for j in 0:N-1])   # need to optimise this
-    return s
+    return SFunction{M}(s)
 end
 (s::SFunction)(n::Int) = s.values[abs(n) + 1]
 
