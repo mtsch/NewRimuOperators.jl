@@ -33,9 +33,9 @@ end
 function TFunction(M, cutoff, t, u)
     w = WFunction(M, cutoff)
     correlation_factor = CorrelationFactor(M, cutoff)
-    return TFunction(cutoff, float(t), float(u), correlation_factor, w)
+    return TFunction{M}(cutoff, float(t), float(u), correlation_factor, w)
 end
-@fastmath function (t_fun::TFunction{M})(_, _, p, q, r, s) where {M}
+@fastmath function (t_fun::TFunction{M})(_, _, p, q, _, s) where {M}
     k = p - s
     t, u = t_fun.t, t_fun.u
     k_pi = n_to_k(k, M)
@@ -53,7 +53,7 @@ end
 function QFunction(M, cutoff, t, u)
     return QFunction{M}(cutoff, float(t), float(u), CorrelationFactor(M, cutoff))
 end
-function (q_fun::QFunction{M})(_, _, p, q, r, s, t, u) where {M}
+function (q_fun::QFunction{M})(_, _, _, p, q, r, s, t, u) where {M}
     k = u - p
     l = q - t
     t, u = q_fun.t, q_fun.u
@@ -72,7 +72,7 @@ struct Transcorrelated{A,O} <: Hamiltonian{A,Float64}
     terms::O
 end
 
-function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_body_term=true, fold=false)
+function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_body_term=true, fold=false, stupid=false)
     M = num_modes(address)
     C = num_components(address)
 
@@ -84,7 +84,11 @@ function Transcorrelated(address; t::Real=1, u::Real=1, cutoff::Int=1, three_bod
     )
     interaction_term = MomentumTwoBodyTerm(t_fun; fold)
     if three_body_term
-        interaction_term += MomentumThreeBodyTerm(QFunction(M, cutoff, t, u))
+        if stupid
+            interaction_term += StupidThreeBodyTerm(QFunction(M, cutoff, t, u))
+        else
+            interaction_term += MomentumThreeBodyTerm(QFunction(M, cutoff, t, u))
+        end
     end
     terms = kinetic_term + interaction_term
     return Transcorrelated(address, Float64(t), Float64(u), cutoff, three_body_term, terms)

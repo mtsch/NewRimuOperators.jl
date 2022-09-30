@@ -20,8 +20,8 @@ end
 LOStructure(::ParticleCountTerm{<:Any,<:Real}) = IsDiagonal()
 LOStructure(::ParticleCountTerm{<:Any,<:Complex}) = AdjointKnown()
 isadjoint(::ParticleCountTerm{<:Any,<:Any,A}) where {A} = A
-function LinearAlgebra.adjoint(op::ParticleCountTerm)
-    return ParticleCountTerm(op.fun, !isadjoint(op))
+function LinearAlgebra.adjoint(op::ParticleCountTerm{F,T,A}) where {F,T,A}
+    return ParticleCountTerm{F,T,!A}(op.fun)
 end
 
 num_offdiagonals(::ParticleCountTerm, args...) = 0
@@ -60,8 +60,8 @@ LOStructure(::NeighbourOneBodyTerm{<:Any,<:Real}) = IsHermitian()
 LOStructure(::NeighbourOneBodyTerm{<:Any,<:Complex}) = AdjointKnown()
 isadjoint(op::NeighbourOneBodyTerm{<:Any,<:Any,A}) where {A} = A
 
-function LinearAlgebra.adjoint(op::NeighbourOneBodyTerm{<:Any,<:Complex})
-    NeighbourOneBodyTerm(op.fun, !isadjoint(op))
+function LinearAlgebra.adjoint(op::NeighbourOneBodyTerm{F,T,A}) where {F,T<:Complex,A}
+    NeighbourOneBodyTerm{F,T,!A}(op.fun)
 end
 
 function num_offdiagonals(op::NeighbourOneBodyTerm, _, map)
@@ -109,8 +109,8 @@ LOStructure(::FullOneBodyTerm{<:Any,<:Real}) = AdjointKnown()
 LOStructure(::FullOneBodyTerm{<:Any,<:Complex}) = AdjointKnown()
 isadjoint(::FullOneBodyTerm{<:Any,<:Any,A}) where {A} = A
 
-function Base.adjoint(op::FullOneBodyTerm)
-    return FullOneBodyTerm(op.fun, !isadjoint(op))
+function Base.adjoint(op::FullOneBodyTerm{F,T,A}) where {F,T,A}
+    return FullOneBodyTerm{F,T,!A}(op.fun)
 end
 
 num_offdiagonals(::FullOneBodyTerm, add, map) = length(map) * (num_modes(add) - 1)
