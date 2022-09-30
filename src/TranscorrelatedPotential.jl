@@ -34,7 +34,7 @@ end
 function (f::TCPotentialOneBody{M})(σ, p, q) where {M}
     k = q - p
     k_pi = n_to_k(k, M)
-    p_pi = i_to_k(p, M) # why is this different?
+    p_pi = i_to_k(p, M) # NB: input momenta are in 1:M mode index form
     vk = f.corr_v(k)
     s_k = f.s(k)
     B = -1/4f.b^2
