@@ -1,6 +1,6 @@
 using Rimu.Hamiltonians: transcorrelated_three_body_excitation
 
-binomial3(k) = k * (k - 1) * (k - 2) ÷ 6
+# binomial3(k) = k * (k - 1) * (k - 2) ÷ 6
 #permutations((a,b)::NTuple{2}) = ((a,b), (b,a))
 #permutations((a,b,c)::NTuple{3}) = ((a,b,c), (a,c,b), (b,a,c), (b,c,a), (c,a,b), (c,b,a))
 
