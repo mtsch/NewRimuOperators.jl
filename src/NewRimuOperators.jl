@@ -58,8 +58,9 @@ include("extensions.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")
+include("potentials.jl")
 # include("TranscorrelatedGeneral.jl")
 include("TranscorrelatedPotential.jl")
-include("potentials.jl")
+
 
 end # module
