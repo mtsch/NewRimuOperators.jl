@@ -1,104 +1,120 @@
-struct SFunction{M}
-    values::SVector{M,Float64}
+struct SFunction{P}
+    values::SVector{P,Float64}
 end
 function SFunction(M; pad=2)
-    N = 2M - isodd(M)           # range of k
-    bigN = pad*2M - isodd(M)    # range of sum over k'
-    dft = momentum_space_harmonic_potential(bigN, pad)
-    ns = range(-bigN + isodd(M); length=bigN) # [-M, M) including left boundary
-    ks = n_to_k.(shift_lattice(ns), bigN)
+    P = 2M - isodd(M)           # range of k
+    Q = pad*2M - isodd(M)       # range of sum over k'
+    dft = momentum_space_harmonic_potential(Q, pad)
+    ns = range(-Q + isodd(M); length=Q) # [-pM, pM) including left boundary
+    ks = n_to_k.(shift_lattice(ns), Q)
     kvk = ks .* dft
 
-    s = SVector{N}([dot(kvk, circshift(kvk, -j)) for j in 0:N-1])   # need to optimise this
-    return SFunction{M}(s)
+    s = SVector{P}([dot(kvk, circshift(kvk, -j)) for j in 0:P-1])   # need to optimise this
+    return SFunction{P}(s)
 end
 (s::SFunction)(n::Int) = s.values[abs(n) + 1]
 
 """
-TCPotentialOneBody(M, cutoff, v, t)
+TCPotentialOneBody(M, c1, c2, pad)
 
 The function used in the one-body term of the transcorrelated harmonic trap potential.
 """
-struct TCPotentialOneBody{M,V}
-    corr_v::MomPotentialFunction{M,Float64}
-    s::SFunction{M}
-    v::V
-    b::Float64
+struct TCPotentialOneBody{M,P,V}
+    corr_v::MomPotentialFunction{P,V}
+    s::SFunction{P}
+    coeff2::V
 end
-function TCPotentialOneBody(M, v, b, pad)
-    dft = momentum_space_harmonic_potential(2M, 2)
-    corr_v = MomPotentialFunction(1, dft)
+function TCPotentialOneBody(M, c1, c2, pad)
+    P = 2M - isodd(M)           # range of k
+    dft = momentum_space_harmonic_potential(P, 2)   # factor of 2 is due to 1/M in definition of `momentum_space_harmonic_potential`
+    corr_v = MomPotentialFunction(c1, dft)
     s = SFunction(M; pad)
-    return TCPotentialOneBody(corr_v, s, v, b)
+    return TCPotentialOneBody{M,P,typeof(c2)}(corr_v, s, c2)
 end
 function (f::TCPotentialOneBody{M})(σ, p, q) where {M}
     k = q - p
     k_pi = n_to_k(k, M)
     p_pi = i_to_k(p, M) # NB: input momenta are in 1:M mode index form
-    vk = f.corr_v(k)
+    vk = f.corr_v(σ, p, q)
     s_k = f.s(k)
-    B = -1/4f.b^2
-    v = f.v(σ)
+    # B = -1/4f.b^2
+    # v = f.v(σ)
+    # A = f.A(σ)
+    B = f.coeff2(σ)
 
-    return B * (k_pi^2 + 2p_pi * k_pi) * vk + 4B^2 * v * s_k
+    return (k_pi^2 + 2p_pi * k_pi) * vk + B * s_k
 end
 
 """
-    TCPotentialTwoBody(M, cutoff, v, t)
+    TCPotentialTwoBody(M, cutoff, c)
 
 The function used in the two-body term of the transcorrelated harmonic trap potential.
 """
-struct TCPotentialTwoBody{M,V}
+struct TCPotentialTwoBody{P,V}
     num_modes::Int
-    corr_u::CorrelationFactor{M}
-    corr_v::MomPotentialFunction{M,Float64}
-    u::Float64
+    corr_u::CorrelationFactor{P}
+    corr_v::MomPotentialFunction{P,ConstFunction{Int}}
+    coeff::V
 end
-function TCPotentialTwoBody(M, cutoff::Int, u, pad)
-    corr_u = CorrelationFactor(M, cutoff; length=2M)
-    corr_v = MomPotentialFunction(1, momentum_space_harmonic_potential(M, 1))
-    TCPotentialTwoBody(M, corr_u, corr_v, u)
+function TCPotentialTwoBody(M, cutoff::Int, c)
+    P = 2M - isodd(M)           # range of k and k'
+    dft = momentum_space_harmonic_potential(P, 2)   # factor of 2 is due to 1/M in definition of `momentum_space_harmonic_potential`
+    corr_v = MomPotentialFunction(ConstFunction{Int}(1), dft)   # this seems janky;
+    corr_u = CorrelationFactor(M, cutoff; length=P)
+    TCPotentialTwoBody(M, corr_u, corr_v, c)
 end
 function (f::TCPotentialTwoBody)(σ, τ, s, r, q, p)
-    return f.u * f.corr_v(p + q - r - s) * n_to_k(p + q - r - s) * f.corr_u(r - q) * n_to_k(r - q)
+    M = f.num_modes
+    kp = r - q
+    k = s - p + kp
+    u = f.coeff(σ, τ)
+    return u * f.corr_v(1, k, 0) * n_to_k(kp, M) * f.corr_u(kp) * n_to_k(kp, M)
 end
 
 """
-    TranscorrelatedPotential(v; cutoff, twobody=false)
+    TranscorrelatedPotential(v; b=1, pad=2, twobody=false)
 
-Transcorrelated external potential with strength `v`. The argument `v` can be a real
-number or a vector of real numbers whose length matches the number of components in the
+Transcorrelated external potential with strength `v`. 
+
+* `v` can be a real number or a vector of real numbers whose length matches the number of components in the
 Hamiltonian.
-
-The `cutoff` defaults to the cutoff of the Hamiltonian is attached to, or 1.
+* `b` is the width of the Jastrow factor relative to the trap length.
+* `pad` scales the number of terms to use in internal sums relative to the number of modes
+* `twobody` toggles the two body terms
 
 Can only be used with momentum space Hamiltonians.
 """
 struct TranscorrelatedPotential{V} <: ExtensionPrototype
     v::V
-    b::Float64
+    b::V
     pad::Int
     twobody::Bool
 end
 function TranscorrelatedPotential(v; b=1, pad=2, twobody=false)
-    return TranscorrelatedPotential(v, b, pad, twobody)
+    return TranscorrelatedPotential{typeof(v)}(v, b, pad, twobody)
 end
 
 function initialize(tcp::TranscorrelatedPotential, ham)
     if basis(ham) ≡ MomentumSpace()
         address = starting_address(ham)
         M = num_modes(address)
-        v = parameter_column(address, tcp.v)
-        b = tcp.b
         u = only(ham.u) / only(ham.t)
         pad = tcp.pad
+
+        v = tcp.v   # trap strengths
+        b = tcp.b   # Jastrow widths
+
+        B = @. -1/4b^2                              # reconcile trap, interaction and Jastrow parameters
+        c1 = parameter_column(address, B)           # coefficient of the quadratic and non-hermitian terms
+        c2 = parameter_column(address, @. 4B^2 * v) # coefficient of the derivative-squared term
         
-        term = FullOneBodyTerm(TCPotentialOneBody(M, v, b, pad))
-        term += HarmonicPotential(v)
+        term = FullOneBodyTerm(TCPotentialOneBody(M, c1, c2, pad))
+        # term += HarmonicPotential(v)
         
         if tcp.twobody && u ≠ 0
-            cutoff = ham isa Transcorrelated ? ham.cutoff : 1
-            return term + FullTwoBodyTerm(TCPotentialTwoBody(M, cutoff, -u/4b^2))
+            cutoff = ham isa Transcorrelated ? ham.cutoff : @warn "Using `TranscorrelatedPotential` with a bare Hamiltonian"
+            c3 = parameter_column(address, u .* B)      # this actually needs to be an interaction_matrix
+            return term + FullTwoBodyTerm(TCPotentialTwoBody(M, cutoff, c3))
         else
             return term
         end
