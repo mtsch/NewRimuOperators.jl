@@ -1,3 +1,13 @@
+# To-do:
+# * The length of the DFT vectors is generally not the same as the number of modes, so 
+#   I need to be careful about which is used as a type parameter
+# * two-body term should really be an interaction matrix, which does not play well with MomPotentialFunction;
+#   this may go back to how to deal with mixed term: u'(x-y) v'(x), where x and y may be of different components
+# * optimise SFunction
+# * cannot add HarmonicPotential
+# * 
+
+
 struct SFunction{P}
     values::SVector{P,Float64}
 end
