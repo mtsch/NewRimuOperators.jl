@@ -4,8 +4,6 @@
 # * two-body term should really be an interaction matrix, which does not play well with MomPotentialFunction;
 #   this may go back to how to deal with mixed term: u'(x-y) v'(x), where x and y may be of different components
 # * optimise SFunction
-# * cannot add HarmonicPotential
-# * 
 
 
 struct SFunction{P}
@@ -14,7 +12,7 @@ end
 function SFunction(M; pad=2)
     P = 2M - isodd(M)           # range of k
     Q = pad*2M - isodd(M)       # range of sum over k'
-    dft = momentum_space_harmonic_potential(Q, pad)
+    dft = momentum_space_harmonic_potential(Q, 2pad)
     ns = range(-Q + isodd(M); length=Q) # [-pM, pM) including left boundary
     ks = n_to_k.(shift_lattice(ns), Q)
     kvk = ks .* dft
@@ -123,7 +121,7 @@ function initialize(tcp::TranscorrelatedPotential, ham)
         
         if tcp.twobody && u ≠ 0
             cutoff = ham isa Transcorrelated ? ham.cutoff : @warn "Using `TranscorrelatedPotential` with a bare Hamiltonian"
-            c3 = parameter_column(address, u .* B)      # this actually needs to be an interaction_matrix
+            c3 = parameter_column(address, 2u .* B)      # this actually needs to be an interaction_matrix
             return term + FullTwoBodyTerm(TCPotentialTwoBody(M, cutoff, c3))
         else
             return term
