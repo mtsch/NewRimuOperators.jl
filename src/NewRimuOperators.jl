@@ -22,7 +22,6 @@ module NewRimuOperators
 
 using StaticArrays
 using LinearAlgebra
-using FFTW
 
 using Rimu
 # Import some Rimu internals:
