@@ -5,6 +5,42 @@
 #   this may go back to how to deal with mixed term: u'(x-y) v'(x), where x and y may be of different components
 # * optimise SFunction
 
+"""
+    trap_dft(M::Integer, v_ho::Real) -> w
+
+Set up a harmonic potential for use with momentum space Hamiltonians:
+```math
+    w(n) = \\mathrm{DFT}[j^2]_n,
+```
+where
+```math
+	j = \\left \\{
+	\\begin{array}{lll}
+		j' + \\frac{M}{2} + 1, & j' \\in [-\\frac{M}{2}, \\frac{M}{2}] & M \\text{ even} \\
+		j' + \\frac{M-1}{2} + 1, & j' \\in [-\\frac{M-1}{2}, \\frac{M-1}{2}] & M \\text{ odd},
+	\\end{array}
+	\\right.
+```
+and ``\\mathrm{DFT}[…]_n`` is a discrete Fourier transform performed by `fft()[n%M + 1]`.
+"""
+function trap_dft(M::Integer)
+    # Set up potential like in Real1DEP
+    is = range(-fld(M,2); length=M) # [-M÷2, M÷2) including left boundary
+    js = shift_lattice(is) # shifted such that js[1] = 0
+    real_potential = [j^2 for j in js]
+    mom_potential = fft(real_potential)
+    # This should never fail for a harmonic oscillator, but it's best to check just in case.
+    for x in mom_potential
+        @assert iszero(real(x)) || abs(imag(x) / real(x)) < sqrt(eps())
+    end
+    # Make sure it's completely symmetric. It should be, but round-off errors can sometimes
+    # make it non-symmetric.
+    for i in 1:M÷2
+        mom_potential[M - i + 1] = mom_potential[i + 1]
+    end
+    return SVector{M}(real.(mom_potential))
+end
+
 
 struct SFunction{P}
     values::SVector{P,Float64}
@@ -12,10 +48,10 @@ end
 function SFunction(M; pad=2)
     P = 2M - isodd(M)           # range of k
     Q = pad*2M - isodd(M)       # range of sum over k'
-    dft = momentum_space_harmonic_potential(Q, 2pad)
+    dft = trap_dft(Q)
     ns = range(-Q + isodd(M); length=Q) # [-pM, pM) including left boundary
     ks = n_to_k.(shift_lattice(ns), Q)
-    kvk = ks .* dft
+    kvk = ks .* dft ./ Q
 
     s = SVector{P}([dot(kvk, circshift(kvk, -j)) for j in 0:P-1])   # need to optimise this
     return SFunction{P}(s)
@@ -34,7 +70,7 @@ struct TCPotentialOneBody{M,P,V}
 end
 function TCPotentialOneBody(M, c1, c2, pad)
     P = 2M - isodd(M)           # range of k
-    dft = momentum_space_harmonic_potential(P, 2)   # factor of 2 is due to 1/M in definition of `momentum_space_harmonic_potential`
+    dft = trap_dft(P)
     corr_v = MomPotentialFunction(c1, dft)
     s = SFunction(M; pad)
     return TCPotentialOneBody{M,P,typeof(c2)}(corr_v, s, c2)
@@ -66,7 +102,7 @@ struct TCPotentialTwoBody{P,V}
 end
 function TCPotentialTwoBody(M, cutoff::Int, c)
     P = 2M - isodd(M)           # range of k and k'
-    dft = momentum_space_harmonic_potential(P, 2)   # factor of 2 is due to 1/M in definition of `momentum_space_harmonic_potential`
+    dft = 2 .* trap_dft(P)  # factor of 2 is due to 1/M in definition of `momentum_space_harmonic_potential`
     corr_v = MomPotentialFunction(ConstFunction{Int}(1), dft)   # this seems janky;
     corr_u = CorrelationFactor(M, cutoff; length=P)
     TCPotentialTwoBody(M, corr_u, corr_v, c)
@@ -93,35 +129,36 @@ Hamiltonian.
 Can only be used with momentum space Hamiltonians.
 """
 struct TranscorrelatedPotential{V} <: ExtensionPrototype
-    v::V
+    # v::V
     b::V
     pad::Int
     twobody::Bool
 end
-function TranscorrelatedPotential(v; b=1, pad=2, twobody=false)
-    return TranscorrelatedPotential{typeof(v)}(v, b, pad, twobody)
+function TranscorrelatedPotential(; b=1, pad=2, twobody=false)
+    return TranscorrelatedPotential{typeof(b)}(b, pad, twobody)
 end
 
 function initialize(tcp::TranscorrelatedPotential, ham)
     if basis(ham) ≡ MomentumSpace()
         address = starting_address(ham)
         M = num_modes(address)
-        u = only(ham.u) / only(ham.t)
+        u = only(ham.u) 
+        t = only(ham.t)
         pad = tcp.pad
 
-        v = tcp.v   # trap strengths
+        # v = tcp.v   # trap strengths
         b = tcp.b   # Jastrow widths
 
         B = @. -1/4b^2                              # reconcile trap, interaction and Jastrow parameters
         c1 = parameter_column(address, B)           # coefficient of the quadratic and non-hermitian terms
-        c2 = parameter_column(address, @. 4B^2 * v) # coefficient of the derivative-squared term
+        c2 = parameter_column(address, @. B^2 / t)  # coefficient of the derivative-squared term
         
         term = FullOneBodyTerm(TCPotentialOneBody(M, c1, c2, pad))
         # term += HarmonicPotential(v)
         
         if tcp.twobody && u ≠ 0
             cutoff = ham isa Transcorrelated ? ham.cutoff : @warn "Using `TranscorrelatedPotential` with a bare Hamiltonian"
-            c3 = parameter_column(address, 2u .* B)      # this actually needs to be an interaction_matrix
+            c3 = parameter_column(address, @. 2B * u/t)      # this actually needs to be an interaction_matrix
             return term + FullTwoBodyTerm(TCPotentialTwoBody(M, cutoff, c3))
         else
             return term
