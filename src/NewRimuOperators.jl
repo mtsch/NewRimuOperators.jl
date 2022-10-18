@@ -35,7 +35,7 @@ using Rimu.BitStringAddresses: update_component
 # These will be extended
 import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address, LOStructure
 
-export ConstFunction, InteractionMatrix
+export InteractionMatrix
 export column
 export SingleTermOperator
 export Hubbard, Transcorrelated

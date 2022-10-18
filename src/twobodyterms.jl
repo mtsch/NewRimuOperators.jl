@@ -55,7 +55,8 @@ The onsite interaciton term:
 \\sum_{σ,τ,p} f(σ,τ) \\hat{a}^†_{p,σ} \\hat{a}^†_{p,τ} \\hat{a}_{p,τ} \\hat{a}_{p,σ},
 ```
 
-where ``f`` is the `fun`, ``σ`` and ``τ`` the spin (component) indices, and ``p`` the mode.
+where ``f`` is the `fun`, ``σ`` and ``τ`` the spin (component) indices, and ``p`` the mode
+index.
 """
 struct OnsiteInteractionTerm{F,T,A} <: AbstractTerm{T,2}
     fun::F
@@ -132,7 +133,7 @@ function MomentumTwoBodyTerm(fun::F; fold=true) where {F}
     return MomentumTwoBodyTerm{F,T,fold,false}(fun)
 end
 function MomentumTwoBodyTerm(val::Number=1; kwargs...)
-    return MomentumTwoBodyTerm(ConstFunction(float(val)); kwargs...)
+    return MomentumTwoBodyTerm(Returns(float(val)); kwargs...)
 end
 
 LOStructure(::MomentumTwoBodyTerm) = AdjointKnown()

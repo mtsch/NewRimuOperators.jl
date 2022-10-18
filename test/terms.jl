@@ -61,7 +61,17 @@ function matrix_fully_dense(term, add)
     return all(!iszero, matrix)
 end
 
-function same_groundstate(term, bose::BoseFS)
+"""
+    bose_vs_fermi_vs_mixture(term, bose::BoseFS)
+
+Check that a term gives the same ground state with:
+
+* a pure bosonic address
+* a `N`-component fermionic address
+* a mixture of a 3-particle bosonic address with `N-3` components of fermionic addresses.
+
+"""
+function bose_vs_fermi_vs_mixture(term, bose::BoseFS)
     fermi = Vector{Int}[]
     for idx in OccupiedModeMap(bose)
         for _ in 1:idx.occnum
@@ -111,7 +121,7 @@ end
             term_complex = ParticleCountTerm((σ, p) -> σ * p * im)
             check_lo_structure(term_complex, add, AdjointKnown())
 
-            same_groundstate(ParticleCountTerm(ConstFunction(1)), BoseFS((1,1,1,2)))
+            bose_vs_fermi_vs_mixture(ParticleCountTerm(Returns(1)), BoseFS((1,1,1,2)))
         end
 
         @testset "NeighbourOneBodyTerm" begin
@@ -128,7 +138,7 @@ end
             @test eltype(term_complex) <: Complex
             check_lo_structure(term_complex, add, AdjointKnown())
 
-            same_groundstate(NeighbourOneBodyTerm(ConstFunction(1)), BoseFS((1,1,1,2)))
+            bose_vs_fermi_vs_mixture(NeighbourOneBodyTerm(Returns(1)), BoseFS((1,1,1,2)))
         end
 
         @testset "FullOneBodyTerm" begin
@@ -148,17 +158,17 @@ end
             check_lo_structure(term_complex, add, AdjointKnown())
 
             @test matrix_fully_dense(
-                FullOneBodyTerm(ConstFunction(1)), FermiFS((0,0,1,0,0,0))
+                FullOneBodyTerm(Returns(1)), FermiFS((0,0,1,0,0,0))
             )
             @test matrix_fully_dense(
-                FullOneBodyTerm(ConstFunction(1)), BoseFS((1,0,0,0,0,0,0))
+                FullOneBodyTerm(Returns(1)), BoseFS((1,0,0,0,0,0,0))
             )
             @test !matrix_fully_dense(
-                FullOneBodyTerm(ConstFunction(1)), BoseFS((0,2,0,0,0,0))
+                FullOneBodyTerm(Returns(1)), BoseFS((0,2,0,0,0,0))
             )
 
             # TODO check again - if complex weird stuff happens
-            same_groundstate(FullOneBodyTerm((_, p, q) -> (p + q)), BoseFS((1,3,1,0)))
+            bose_vs_fermi_vs_mixture(FullOneBodyTerm((_, p, q) -> (p + q)), BoseFS((1,3,1,0)))
         end
     end
 
@@ -175,7 +185,7 @@ end
             term_complex = OnsiteInteractionTerm((σ, τ) -> σ == τ ? 10im : 2im)
             check_lo_structure(term_complex, add, AdjointKnown())
 
-            same_groundstate(OnsiteInteractionTerm(ConstFunction(1)), BoseFS((1,5,1)))
+            bose_vs_fermi_vs_mixture(OnsiteInteractionTerm(Returns(1)), BoseFS((1,5,1)))
         end
 
         @testset "MomentumTwoBodyTerm" begin
@@ -208,16 +218,16 @@ end
             check_lo_structure(term_complex_nofold, add, AdjointKnown())
 
             @test matrix_fully_dense(
-                MomentumTwoBodyTerm(ConstFunction(1)), FermiFS2C((0,1,0,0), (0,0,1,0))
+                MomentumTwoBodyTerm(Returns(1)), FermiFS2C((0,1,0,0), (0,0,1,0))
             )
             @test matrix_fully_dense(
-                MomentumTwoBodyTerm(ConstFunction(1)), BoseFS((0,0,0,0,2,0))
+                MomentumTwoBodyTerm(Returns(1)), BoseFS((0,0,0,0,2,0))
             )
             @test !matrix_fully_dense(
-                MomentumTwoBodyTerm(ConstFunction(1)), BoseFS((0,2,0,0,0,1))
+                MomentumTwoBodyTerm(Returns(1)), BoseFS((0,2,0,0,0,1))
             )
 
-            same_groundstate(
+            bose_vs_fermi_vs_mixture(
                 MomentumTwoBodyTerm((_,_,p,q,r,s) -> (s - p)^2), BoseFS((1,5,1))
             )
         end
@@ -235,20 +245,20 @@ end
             check_lo_structure(term_complex, add, AdjointKnown())
 
             @test matrix_fully_dense(
-                FullTwoBodyTerm(ConstFunction(1)), FermiFS2C((0,1,0,0), (0,0,1,0))
+                FullTwoBodyTerm(Returns(1)), FermiFS2C((0,1,0,0), (0,0,1,0))
             )
             @test matrix_fully_dense(
-                FullTwoBodyTerm(ConstFunction(1)), BoseFS((0,0,0,0,2,0))
+                FullTwoBodyTerm(Returns(1)), BoseFS((0,0,0,0,2,0))
             )
             @test !matrix_fully_dense(
-                FullTwoBodyTerm(ConstFunction(1)), BoseFS((0,2,0,0,0,1))
+                FullTwoBodyTerm(Returns(1)), BoseFS((0,2,0,0,0,1))
             )
 
             # TODO
-            same_groundstate(
-                FullTwoBodyTerm(ConstFunction(1)), BoseFS((1,5,1))
+            bose_vs_fermi_vs_mixture(
+                FullTwoBodyTerm(Returns(1)), BoseFS((1,5,1))
             )
-            same_groundstate(
+            bose_vs_fermi_vs_mixture(
                 FullTwoBodyTerm((_,_,p,q,r,s) -> (s - p)^2), BoseFS((1,5,1))
             )
         end
@@ -266,7 +276,7 @@ end
         check_lo_structure(term, add, AdjointKnown())
         @test conserves_momentum(term, add; fold=false)
 
-        # Need more complicated function here. For fermions, ConstFunction(1) cancels itself
+        # Need more complicated function here. For fermions, Returns(1) cancels itself
         # out.
         func(σ, τ, p, q, r, s, t, u) = (p - u) * (q - t)
 
@@ -281,6 +291,6 @@ end
         )
 
         # TODO
-        same_groundstate(MomentumThreeBodyTerm(ConstFunction(1)), BoseFS((1,5,1)))
+        bose_vs_fermi_vs_mixture(MomentumThreeBodyTerm(Returns(1)), BoseFS((1,5,1)))
     end
 end
