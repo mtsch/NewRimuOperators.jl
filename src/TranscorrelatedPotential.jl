@@ -3,7 +3,7 @@
 #   I need to be careful about which is used as a type parameter
 # * two-body term should really be an interaction matrix, which does not play well with MomPotentialFunction;
 #   this may go back to how to deal with mixed term: u'(x-y) v'(x), where x and y may be of different components
-# * optimise SFunction
+# * optimise STensor
 
 """
     trap_dft(M::Integer, v_ho::Real) -> w
@@ -41,52 +41,63 @@ function trap_dft(M::Integer)
     return SVector{M}(real.(mom_potential))
 end
 
+"""
+    STensor(M; dft = trap_dft(M), pad = 1)
 
-struct SFunction{P}
+Compute the tensor
+```math
+    S_k = \\sum_{k'} k' \\, (k-k') \\tilde{v}(k') \\tilde{v}(k-k'),
+```
+where ``\\tilde{v}(k)`` is the DFT of a harmonic trapping potential on a lattice of ``M`` sites.
+The values of `k` are in ``\\frac{2\\pi}{M\\alpha}[-M, M]``.
+The argument `pad` extends the sum over ``k'`` to include 
+``k' \\in \\frac{2\\pi}{M\\alpha}[-pad*M, pad*M]``.
+"""
+struct STensor{P}
     values::SVector{P,Float64}
 end
-function SFunction(M; pad=2)
-    P = 2M - isodd(M)           # range of k
-    Q = pad*2M - isodd(M)       # range of sum over k'
-    dft = trap_dft(Q)
-    ns = range(-Q + isodd(M); length=Q) # [-pM, pM) including left boundary
-    ks = n_to_k.(shift_lattice(ns), Q)
-    kvk = ks .* dft ./ Q
+function STensor(M; dft = trap_dft(M), pad = 1)
+    @assert length(dft) == M
+    P = 2M - 1              # no. of k values
 
-    s = SVector{P}([dot(kvk, circshift(kvk, -j)) for j in 0:P-1])   # need to optimise this
-    return SFunction{P}(s)
+    s = zeros(P)
+    np_range = -pad*M + 1:pad*M - 1
+    for i in 1:P
+        n = i - M
+        for np in np_range
+            s[i] += (2π/M)^2 * np * (n - np) * dft[1 + mod(np, M)] * dft[1 + mod(n - np, M)]
+        end
+    end
+    return STensor{P}(SVector{P}(s))
 end
-(s::SFunction)(n::Int) = s.values[abs(n) + 1]
+(s::STensor{P})(n::Int) where {P} = s.values[n + (P + 1) ÷ 2]
 
 """
-TCPotentialOneBody(M, c1, c2, pad)
+    TCPotentialOneBody(M, c1, c2, pad)
 
 The function used in the one-body term of the transcorrelated harmonic trap potential.
 """
 struct TCPotentialOneBody{M,P,V}
-    corr_v::MomPotentialFunction{P,V}
-    s::SFunction{P}
+    corr_v::MomPotentialFunction{M,V}
+    s::STensor{P}
     coeff2::V
 end
 function TCPotentialOneBody(M, c1, c2, pad)
     P = 2M - isodd(M)           # range of k
-    dft = trap_dft(P)
-    corr_v = MomPotentialFunction(c1, dft)
-    s = SFunction(M; pad)
+    dft = trap_dft(M)
+    corr_v = MomPotentialFunction(c1, dft)  # this might be too short? should have length P
+    s = STensor(M; dft, pad)
     return TCPotentialOneBody{M,P,typeof(c2)}(corr_v, s, c2)
 end
 function (f::TCPotentialOneBody{M})(σ, p, q) where {M}
     k = q - p
     k_pi = n_to_k(k, M)
     p_pi = i_to_k(p, M) # NB: input momenta are in 1:M mode index form
-    vk = f.corr_v(σ, p, q)
+    v_k = f.corr_v(σ, p, q)
     s_k = f.s(k)
-    # B = -1/4f.b^2
-    # v = f.v(σ)
-    # A = f.A(σ)
-    B = f.coeff2(σ)
+    c = f.coeff2(σ)
 
-    return (k_pi^2 + 2p_pi * k_pi) * vk + B * s_k
+    return (k_pi^2 + 2p_pi * k_pi) * v_k + c * s_k
 end
 
 """
@@ -116,7 +127,7 @@ function (f::TCPotentialTwoBody)(σ, τ, s, r, q, p)
 end
 
 """
-    TranscorrelatedPotential(v; b=1, pad=2, twobody=false)
+    TranscorrelatedPotential(v; b=1, pad=1, twobody=false)
 
 Transcorrelated external potential with strength `v`. 
 
@@ -134,7 +145,7 @@ struct TranscorrelatedPotential{V} <: ExtensionPrototype
     pad::Int
     twobody::Bool
 end
-function TranscorrelatedPotential(; b=1, pad=2, twobody=false)
+function TranscorrelatedPotential(; b=1, pad=1, twobody=false)
     return TranscorrelatedPotential{typeof(b)}(b, pad, twobody)
 end
 
