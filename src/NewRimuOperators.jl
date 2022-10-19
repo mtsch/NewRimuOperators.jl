@@ -51,6 +51,9 @@ include("onebodyterms.jl")
 include("twobodyterms.jl")
 include("threebodyterms.jl")
 
+export StupidTwoBodyTerm, StupidThreeBodyTerm
+include("stupidterms.jl")
+
 include("sum.jl")
 include("extensions.jl")
 

@@ -15,7 +15,6 @@ function two_body_diagonal(op, map, comp)
         for j in 1:i-1
             occ_j = map[j].occnum
             q = map[j].mode
-            k = p - q
             onproduct_nonzero += (
                 op.fun(comp, comp, p, q, p, q) +
                 op.fun(comp, comp, q, p, q, p) +
@@ -392,9 +391,15 @@ function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (σ
     if new_add_a == add_a && new_add_b == add_b
         fun_val = zero(eltype(op))
     elseif !isadjoint(op)
-        fun_val = op.fun(σ, τ, p_index.mode, q_index.mode, r, s)
+        fun_val = +(
+            op.fun(σ, τ, p_index.mode, q_index.mode, r, s),
+            op.fun(σ, τ, q_index.mode, p_index.mode, s, r),
+        ) / 2
     else
-        fun_val = conj(op.fun(σ, τ, s, r, q_index.mode, p_index.mode))
+        fun_val = +(
+            conj(op.fun(σ, τ, s, r, q_index.mode, p_index.mode)),
+            conj(op.fun(σ, τ, r, s, p_index.mode, q_index.mode)),
+        ) / 2
     end
     return new_add_a, new_add_b, fun_val * val_a * val_b
 end
