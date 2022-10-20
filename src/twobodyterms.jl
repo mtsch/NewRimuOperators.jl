@@ -35,7 +35,10 @@ function two_body_diagonal(op, map_a, map_b, (σ, τ))
         for j in map_b
             p = i.mode
             q = j.mode
-            onproduct += op.fun(σ, τ, p, q, q, p) * i.occnum * j.occnum
+            onproduct += +(
+                op.fun(σ, τ, p, q, q, p),
+                op.fun(τ, σ, q, p, p, q),
+            ) * i.occnum * j.occnum / 2
         end
     end
     if !isadjoint(op)

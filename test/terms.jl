@@ -61,10 +61,21 @@ function matrix_fully_dense(term, add)
     return all(!iszero, matrix)
 end
 
+function term_issubset(small, big, add)
+    bsr_small = BasisSetRep(small, add; sort=true)
+    bsr_big = BasisSetRep(big, add; sort=true)
+    small_basis = Set(bsr_small.basis)
+
+    subset = [a in small_basis for a in bsr_big.basis]
+
+    return Matrix(bsr_small), Matrix(bsr_big)[subset, subset]
+    return Matrix(bsr_big)[subset, subset] ≈ Matrix(bsr_small)
+end
+
 """
     bose_vs_fermi_vs_mixture(term, bose::BoseFS)
 
-Check that a term gives the same ground state with:
+Check that a term gives the same eigenvalues (up to degeneracies) with:
 
 * a pure bosonic address
 * a `N`-component fermionic address
@@ -80,8 +91,13 @@ function bose_vs_fermi_vs_mixture(term, bose::BoseFS)
     end
     fermi = CompositeFS(map(FermiFS, fermi)...)
 
-    @test eigvals(Matrix(SingleTermOperator(term, bose)))[1] ≈
-        eigvals(Matrix(SingleTermOperator(term, fermi)))[1]
+    eigs_bose = eigvals(Matrix(SingleTermOperator(term, bose)))
+    eigs_fermi = eigvals(Matrix(SingleTermOperator(term, fermi)))
+
+    Δbose_fermi_re = maximum(minimum(real.(eigs_fermi) .- real(e)) for e in eigs_bose)
+    Δbose_fermi_im = maximum(minimum(imag.(eigs_fermi) .- imag(e)) for e in eigs_bose)
+    @test abs(Δbose_fermi_re) < sqrt(eps(Float64))
+    @test abs(Δbose_fermi_im) < sqrt(eps(Float64))
 
     # Make a mixed one as well
     if num_particles(bose) > 3
@@ -102,8 +118,12 @@ function bose_vs_fermi_vs_mixture(term, bose::BoseFS)
 
         mixture = CompositeFS(BoseFS(new_bose), map(FermiFS, fermi)...)
 
-        @test eigvals(Matrix(SingleTermOperator(term, bose)))[1] ≈
-            eigvals(Matrix(SingleTermOperator(term, mixture)))[1]
+        eigs_mix = eigvals(Matrix(SingleTermOperator(term, mixture)))
+
+        Δbose_mix_re = maximum(minimum(real.(eigs_mix) .- real(e)) for e in eigs_bose)
+        Δbose_mix_im = maximum(minimum(imag.(eigs_mix) .- imag(e)) for e in eigs_bose)
+        @test abs(Δbose_mix_re) < sqrt(eps(Float64))
+        @test abs(Δbose_mix_im) < sqrt(eps(Float64))
     end
 end
 
@@ -122,6 +142,7 @@ end
             check_lo_structure(term_complex, add, AdjointKnown())
 
             bose_vs_fermi_vs_mixture(ParticleCountTerm(Returns(1)), BoseFS((1,1,1,2)))
+            bose_vs_fermi_vs_mixture(ParticleCountTerm(Returns(im)), BoseFS((1,1,1,2)))
         end
 
         @testset "NeighbourOneBodyTerm" begin
@@ -139,6 +160,7 @@ end
             check_lo_structure(term_complex, add, AdjointKnown())
 
             bose_vs_fermi_vs_mixture(NeighbourOneBodyTerm(Returns(1)), BoseFS((1,1,1,2)))
+            bose_vs_fermi_vs_mixture(NeighbourOneBodyTerm(Returns(im)), BoseFS((1,1,1,2)))
         end
 
         @testset "FullOneBodyTerm" begin
@@ -152,7 +174,7 @@ end
             @test !conserves_momentum(term_real, add)
             check_lo_structure(term_real, add, AdjointKnown())
 
-            term_complex = FullOneBodyTerm((σ, q, p) -> σ == 1 ? (p - q * im) : (p * q + im))
+            term_complex = FullOneBodyTerm((σ,q,p) -> σ == 1 ? (p - q * im) : (p * q + im))
             @test num_offdiagonals(term_complex, add) == 3 * 3
             @test diagonal_element(term_complex, add) == 14 - 7im
             check_lo_structure(term_complex, add, AdjointKnown())
@@ -167,8 +189,9 @@ end
                 FullOneBodyTerm(Returns(1)), BoseFS((0,2,0,0,0,0))
             )
 
-            # TODO check again - if complex weird stuff happens
-            bose_vs_fermi_vs_mixture(FullOneBodyTerm((_, p, q) -> (p + q)), BoseFS((1,3,1,0)))
+            add = BoseFS((1,3,1,0))
+            bose_vs_fermi_vs_mixture(FullOneBodyTerm((_, p, q) -> (p + q)), add)
+            bose_vs_fermi_vs_mixture(FullOneBodyTerm((_, p, q) -> (p + im * q)), add)
         end
     end
 
@@ -186,6 +209,7 @@ end
             check_lo_structure(term_complex, add, AdjointKnown())
 
             bose_vs_fermi_vs_mixture(OnsiteInteractionTerm(Returns(1)), BoseFS((1,5,1)))
+            bose_vs_fermi_vs_mixture(OnsiteInteractionTerm(Returns(im)), BoseFS((1,5,1)))
         end
 
         @testset "MomentumTwoBodyTerm" begin
@@ -230,6 +254,9 @@ end
             bose_vs_fermi_vs_mixture(
                 MomentumTwoBodyTerm((_,_,p,q,r,s) -> (s - p)^2), BoseFS((1,5,1))
             )
+            bose_vs_fermi_vs_mixture(
+                MomentumTwoBodyTerm((_,_,p,q,r,s) -> im*(q - r)^2), BoseFS((1,5,1))
+            )
         end
 
         @testset "FullTwoBodyTerm" begin
@@ -254,12 +281,17 @@ end
                 FullTwoBodyTerm(Returns(1)), BoseFS((0,2,0,0,0,1))
             )
 
-            # TODO
             bose_vs_fermi_vs_mixture(
-                FullTwoBodyTerm(Returns(1)), BoseFS((1,5,1))
+                FullTwoBodyTerm(Returns(1)), BoseFS((1,3,1))
+            )
+            bose_vs_fermi_vs_mixture(
+                FullTwoBodyTerm(Returns(im)), BoseFS((1,3,1))
             )
             bose_vs_fermi_vs_mixture(
                 FullTwoBodyTerm((_,_,p,q,r,s) -> (s - p)^2), BoseFS((1,5,1))
+            )
+            bose_vs_fermi_vs_mixture(
+                FullTwoBodyTerm((_,_,p,q,r,s) -> im*(r - q)^2), BoseFS((1,5,1))
             )
         end
     end

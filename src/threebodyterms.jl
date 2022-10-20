@@ -48,6 +48,9 @@ function num_offdiagonals(::MomentumThreeBodyTerm, add::BoseFS, map)
     return (binomial3(singlies) + doublies * (singlies - 1) + triplies) *
         (M * (M + 1)) ÷ 2
 end
+
+# Given `p`, `q`, `r` indices, pick `s`, `t`, `u`.  This is done by picking the modes for
+# `u` and `t` such that `u` ≤ `t`. `s` is then picked in a way that is momentum conserving.
 function _pick_stu(add, p, q, r, dst_index)
     u_mode, t_mode = index_to_sorted_pair(dst_index)
     t_mode -= 1
@@ -68,7 +71,6 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
 
     # First, we determine p, q, r and the dst_index
     if double > 0
-        # Will pick doubly + singly or triply occupied modes.
         doublies = count(i -> i.occnum ≥ 2, map)
         triple = double - doublies * (singlies - 1) * num_destinations
         if triple > 0
@@ -77,9 +79,8 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
             stu = _pick_stu(add, p, p, p, dst_index)
             if isnothing(stu)
                 return add, zero(eltype(op))
-            else
-                s, t, u = stu
             end
+            s, t, u = stu
             q = r = p
 
             if !isadjoint(op)
@@ -94,9 +95,11 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
                 ))
             end
             if t.mode == u.mode
+                # If t and u are the same, there are two fewer permutations.
                 fun_val /= 2
             end
         else
+            # One duplicate and one unique, e.g. p = q, r ≠ p
             src_double, src_single, dst_index = Tuple(CartesianIndices(
                 (doublies, singlies - 1, num_destinations)
             )[double])
@@ -110,7 +113,6 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
                 s, t, u = stu
             end
             r = p
-            @show p.mode,q.mode,s.mode,t.mode,u.mode
 
             if !isadjoint(op)
                 fun_val = +(
@@ -131,11 +133,16 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
                     op.fun(σ, σ, σ, t.mode, u.mode, s.mode, p.mode, p.mode, q.mode),
                 ))
             end
-            if t.mode == s.mode
-                fun_val *= 2
+            #if t.mode == s.mode
+             #   fun_val *= 2
+            #end
+            if t.mode == u.mode
+                fun_val /= 2
             end
         end
     else
+        # TODO: problem is here
+        # Three unique indices: pick them such that p < q < r.
         src_index, dst_index = fldmod1(chosen, num_destinations)
         p_index, q_index, r_index = index_to_sorted_triple(src_index, singlies)
 
@@ -173,6 +180,9 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
                 op.fun(σ, σ, σ, u.mode, t.mode, s.mode, p.mode, q.mode, r.mode),
             ))
         end
+        if t.mode == u.mode
+            fun_val /= 2
+        end
     end
 
     new_add, val = excitation(add, (u, t, s), (r, q, p))
@@ -183,15 +193,30 @@ function get_offdiagonal(op::MomentumThreeBodyTerm, add::BoseFS, map, chosen, σ
     end
 end
 function diagonal_element(op::MomentumThreeBodyTerm, add::BoseFS, map, σ=1)
+    # This includes:
+    # * all particles remain where they are, k = k' = 0
+    # * two particles swap places, one stays where it is, k = k'
+    # * three particles rotate places: 0 ≠ k ≠ k' ≠ 0
+    # TODO can be done without going through the whole triple loop.
+
     res = zero(eltype(op))
     for p in map, q in map, r in map
         val = p.occnum * (q.occnum - (q == p)) * (r.occnum - (r == p) - (r == q))
         res += val * +(
-            op.fun(σ,σ,σ, p.mode,q.mode,r.mode, r.mode,q.mode,p.mode),
-            op.fun(σ,σ,σ, p.mode,q.mode,r.mode, r.mode,p.mode,q.mode),
-            op.fun(σ,σ,σ, p.mode,q.mode,r.mode, p.mode,p.mode,r.mode),
-            op.fun(σ,σ,σ, p.mode,q.mode,r.mode, q.mode,r.mode,p.mode),
-        ) * p.occnum * q.occnum * r.occnum
+            # All particles stay where they are:
+            op.fun(σ,σ,σ, p.mode,q.mode,r.mode, r.mode,q.mode,p.mode), # k = 0
+
+            # Single swaps:
+            (p.mode≠q.mode) * op.fun(σ,σ,σ, p.mode,q.mode,r.mode, r.mode,p.mode,q.mode),
+            (p.mode≠r.mode) * op.fun(σ,σ,σ, p.mode,q.mode,r.mode, p.mode,q.mode,r.mode),
+            (q.mode≠r.mode) * op.fun(σ,σ,σ, p.mode,q.mode,r.mode, q.mode,r.mode,p.mode),
+
+            # Cycle:
+            (p.mode ≠ q.mode && q.mode ≠ r.mode && p.mode ≠ r.mode) * +(
+                op.fun(σ,σ,σ, p.mode,q.mode,r.mode, q.mode,p.mode,r.mode),
+                op.fun(σ,σ,σ, p.mode,q.mode,r.mode, p.mode,r.mode,q.mode),
+            )
+        )
     end
     return res
 end
@@ -274,6 +299,7 @@ function get_offdiagonal(
             else
                 if !isadjoint(op)
                     fun_val = +(
+                        # TODO: call with permutations of sigma and tau
                         op.fun(σ, σ, τ, p.mode, q.mode, r.mode, s.mode, t.mode, u.mode),
                         op.fun(σ, σ, τ, p.mode, q.mode, r.mode, s.mode, u.mode, t.mode),
                         op.fun(σ, σ, τ, q.mode, p.mode, r.mode, s.mode, t.mode, u.mode),
@@ -339,6 +365,7 @@ function get_offdiagonal(
         elseif !isadjoint(op)
             # Note: minus signs come in because we permuted the indices
             fun_val = +(
+                # TODO call with permutations of sigma and tau
                 op.fun(σ, σ, τ, p.mode, q.mode, r.mode, s.mode, t.mode, u.mode),
                 op.fun(σ, σ, τ, q.mode, p.mode, r.mode, s.mode, u.mode, t.mode),
                 -op.fun(σ, σ, τ, p.mode, q.mode, r.mode, s.mode, u.mode, t.mode),
@@ -431,7 +458,7 @@ function get_offdiagonal(
                 op.fun(σ, ν, τ, p.mode, r.mode, q.mode, t.mode, s.mode, u.mode),
                 op.fun(τ, σ, ν, q.mode, p.mode, r.mode, s.mode, u.mode, t.mode),
                 op.fun(τ, ν, σ, q.mode, r.mode, p.mode, u.mode, s.mode, t.mode),
-                op.fun(ν, σ, τ, r.mode, p.mode, q.mode, u.mode, u.mode, s.mode),
+                op.fun(ν, σ, τ, r.mode, p.mode, q.mode, t.mode, u.mode, s.mode),
                 op.fun(ν, τ, σ, r.mode, q.mode, p.mode, u.mode, t.mode, s.mode),
             )
         else
@@ -451,12 +478,13 @@ function diagonal_element(op::MomentumThreeBodyTerm, _, _, _, map_a, map_b, map_
     value = zero(eltype(op))
     for p in map_a, q in map_b, r in map_c
         value += +(
+            # TODO call with permutations of sigma and tau
             op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
-            op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
-            op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
-            op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
-            op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
-            op.fun(σ, τ, ν, p.mode, q.mode, r.mode, r.mode, q.mode, p.mode),
+            op.fun(σ, ν, τ, p.mode, r.mode, q.mode, q.mode, r.mode, p.mode),
+            op.fun(τ, σ, ν, q.mode, p.mode, r.mode, r.mode, p.mode, q.mode),
+            op.fun(τ, ν, σ, q.mode, r.mode, p.mode, p.mode, r.mode, q.mode),
+            op.fun(ν, σ, τ, r.mode, p.mode, q.mode, q.mode, p.mode, r.mode),
+            op.fun(ν, τ, σ, r.mode, q.mode, p.mode, p.mode, q.mode, r.mode),
         ) * p.occnum * q.occnum * r.occnum
     end
     return value
