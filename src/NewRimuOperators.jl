@@ -36,7 +36,7 @@ using Rimu.BitStringAddresses: update_component
 # These will be extended
 import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address, LOStructure
 
-export ConstFunction, InteractionMatrix
+export InteractionMatrix
 export column
 export SingleTermOperator
 export Hubbard, Transcorrelated
@@ -52,6 +52,9 @@ include("excitationhelpers.jl")
 include("onebodyterms.jl")
 include("twobodyterms.jl")
 include("threebodyterms.jl")
+
+export StupidTwoBodyTerm, StupidThreeBodyTerm
+include("stupidterms.jl")
 
 include("sum.jl")
 include("extensions.jl")
