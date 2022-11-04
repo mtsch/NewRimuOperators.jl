@@ -40,7 +40,6 @@ export ConstFunction, InteractionMatrix
 export column
 export SingleTermOperator
 export Hubbard, Transcorrelated
-# export TranscorrelatedGeneral
 export TranscorrelatedPotential
 export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 
@@ -60,7 +59,6 @@ include("extensions.jl")
 include("hubbard.jl")
 include("transcorrelated.jl")
 include("potentials.jl")
-# include("TranscorrelatedGeneral.jl")
 include("TranscorrelatedPotential.jl")
 
 
