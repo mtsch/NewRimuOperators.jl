@@ -111,14 +111,14 @@ function TCPotentialTwoBody(M, v, cutoff::Int, c3)
     corr_u = CorrelationFactor(M, cutoff; length=P)
     TCPotentialTwoBody(M, corr_u, corr_v, c3)
 end
-function (f::TCPotentialTwoBody)(σ, τ, s, r, q, p)
+function (f::TCPotentialTwoBody)(σ, τ, p, q, r, s)
     M = f.num_modes
     kp = r - q
     k = s - p + kp
     v_k = f.corr_v(σ, k, 0)
-    u_k = f.corr_u(kp)
+    u_kp = f.corr_u(kp)
     c3 = f.coeff(σ, τ)
-    return c3 * v_k * n_to_k(kp, M) * u_k * n_to_k(kp, M)
+    return c3 * n_to_k(k, M) * n_to_k(kp, M) * v_k * u_kp
 end
 
 """
