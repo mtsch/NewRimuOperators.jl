@@ -102,12 +102,12 @@ The function used in the two-body term of the transcorrelated harmonic trap pote
 struct TCPotentialTwoBody{P,V}
     num_modes::Int
     corr_u::CorrelationFactor{P}
-    corr_v::MomPotentialFunction{P,ConstFunction{Int}}
+    corr_v::MomPotentialFunction{P,Returns{Int}}
     coeff::V
 end
 function TCPotentialTwoBody(M, v, cutoff::Int, c3)
     P = 2M - 1           # range of k and k'
-    corr_v = MomPotentialFunction(ConstFunction{Int}(1), SVector{P}(v[1:P]))
+    corr_v = MomPotentialFunction(Returns(1), SVector{P}(v[1:P]))
     corr_u = CorrelationFactor(M, cutoff; length=P)
     TCPotentialTwoBody(M, corr_u, corr_v, c3)
 end
