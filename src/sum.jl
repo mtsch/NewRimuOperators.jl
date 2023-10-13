@@ -15,6 +15,11 @@ Base.show(io::IO, op::OperatorSum) = print(io, op.left, " + ", op.right)
 
 
 LOStructure(op::OperatorSum) = combine_structure(LOStructure(op.left), LOStructure(op.right))
+
+combine_structure(::AdjointKnown, ::IsDiagonal) = AdjointKnown()
+combine_structure(::IsHermitian, ::IsDiagonal) = IsHermitian()
+combine_structure(::IsDiagonal, ::AdjointKnown) = AdjointKnown()
+combine_structure(::IsDiagonal, ::IsHermitian) = IsHermitian()
 combine_structure(::IsHermitian, ::IsHermitian) = IsHermitian()
 combine_structure(::AdjointKnown, ::IsHermitian) = AdjointKnown()
 combine_structure(::IsHermitian, ::AdjointKnown) = AdjointKnown()

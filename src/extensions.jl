@@ -8,6 +8,8 @@ terms(ext::ExtendedHamiltonian) = ext.terms
 basis(ext::ExtendedHamiltonian) = basis(ext.hamiltonian)
 LOStructure(ext::ExtendedHamiltonian) = LOStructure(ext.terms) # TODO?
 starting_address(ext::ExtendedHamiltonian) = starting_address(ext.hamiltonian)
+# TODO: add marker for adjointness
+Base.adjoint(ext::ExtendedHamiltonian) = ExtendedHamiltonian(ext.hamiltonian, ext.extensions, ext.terms')
 
 function Base.show(io::IO, ext::ExtendedHamiltonian)
     print(io, ext.hamiltonian)
