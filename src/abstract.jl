@@ -32,7 +32,7 @@ TODO: rename me to `AbstractHamiltonian` later.
 abstract type Hamiltonian{A,T} <: AbstractOperator{T} end
 
 diagonal_element(h::Hamiltonian, args...) = diagonal_element(terms(h), args...)
-num_offdiagonals(h::Hamiltonian, args...) = get_offdiagonal(terms(h), args...)
+num_offdiagonals(h::Hamiltonian, args...) = num_offdiagonals(terms(h), args...)
 get_offdiagonal(h::Hamiltonian, args...) = get_offdiagonal(terms(h), args...)
 column(h::Hamiltonian{A}, add::A) where {A} = column(terms(h), add)
 column(h::Hamiltonian{A}, add::A) where {A<:CompositeFS} = column(terms(h), add)

@@ -22,6 +22,7 @@ module NewRimuOperators
 
 using StaticArrays
 using LinearAlgebra
+using FFTW
 
 using Rimu
 # Import some Rimu internals:
@@ -35,10 +36,11 @@ using Rimu.BitStringAddresses: update_component
 # These will be extended
 import Rimu: num_offdiagonals, get_offdiagonal, diagonal_element, offdiagonals, starting_address, LOStructure
 
-export ConstFunction, InteractionMatrix
+export InteractionMatrix
 export column
 export SingleTermOperator
 export Hubbard, Transcorrelated
+export TranscorrelatedPotential
 export HarmonicPotential, DeltaPotential, TranscorrelatedDeltaPotential
 
 include("utilities.jl")
@@ -51,11 +53,16 @@ include("onebodyterms.jl")
 include("twobodyterms.jl")
 include("threebodyterms.jl")
 
+export StupidTwoBodyTerm, StupidThreeBodyTerm
+include("stupidterms.jl")
+
 include("sum.jl")
 include("extensions.jl")
 
 include("hubbard.jl")
 include("transcorrelated.jl")
 include("potentials.jl")
+include("TranscorrelatedPotential.jl")
+
 
 end # module

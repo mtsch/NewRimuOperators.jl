@@ -15,11 +15,12 @@ function two_body_diagonal(op, map, comp)
         for j in 1:i-1
             occ_j = map[j].occnum
             q = map[j].mode
-            k = p - q
             onproduct_nonzero += (
                 op.fun(comp, comp, p, q, p, q) +
-                op.fun(comp, comp, q, p, q, p)
-            ) * 2 * occ_i * occ_j
+                op.fun(comp, comp, q, p, q, p) +
+                op.fun(comp, comp, p, q, q, p) +
+                op.fun(comp, comp, q, p, p, q)
+            ) * occ_i * occ_j
         end
     end
     if isadjoint(op)
@@ -28,13 +29,16 @@ function two_body_diagonal(op, map, comp)
         return (onproduct_zero + onproduct_nonzero) / 2
     end
 end
-function two_body_diagonal(op, map_a, map_b, (c_a, c_b))
+function two_body_diagonal(op, map_a, map_b, (σ, τ))
     onproduct = zero(eltype(op))
     for i in map_a
         for j in map_b
             p = i.mode
             q = j.mode
-            onproduct += op.fun(c_a, c_b, p, q, q, p) * i.occnum * j.occnum
+            onproduct += +(
+                op.fun(σ, τ, p, q, q, p),
+                op.fun(τ, σ, q, p, p, q),
+            ) * i.occnum * j.occnum / 2
         end
     end
     if !isadjoint(op)
@@ -53,7 +57,8 @@ The onsite interaciton term:
 \\sum_{σ,τ,p} f(σ,τ) \\hat{a}^†_{p,σ} \\hat{a}^†_{p,τ} \\hat{a}_{p,τ} \\hat{a}_{p,σ},
 ```
 
-where ``f`` is the `fun`, ``σ`` and ``τ`` the spin (component) indices, and ``p`` the mode.
+where ``f`` is the `fun`, ``σ`` and ``τ`` the spin (component) indices, and ``p`` the mode
+index.
 """
 struct OnsiteInteractionTerm{F,T,A} <: AbstractTerm{T,2}
     fun::F
@@ -66,8 +71,8 @@ end
 LOStructure(::OnsiteInteractionTerm{<:Any,<:Real}) = IsDiagonal()
 LOStructure(::OnsiteInteractionTerm{<:Any,<:Complex}) = AdjointKnown()
 isadjoint(::OnsiteInteractionTerm{<:Any,<:Any,A}) where {A} = A
-function LinearAlgebra.adjoint(op::OnsiteInteractionTerm)
-    return OnsiteInteractionTerm(op.fun, !isadjoint(op))
+function LinearAlgebra.adjoint(op::OnsiteInteractionTerm{F,T,A}) where {F,T,A}
+    return OnsiteInteractionTerm{F,T,!A}(op.fun)
 end
 
 num_offdiagonals(op::OnsiteInteractionTerm, _, _) = 0
@@ -84,7 +89,7 @@ end
 function diagonal_element(op::OnsiteInteractionTerm, ::FermiFS, _, _)
     return 0.0
 end
-function diagonal_element(op::OnsiteInteractionTerm, _, _, map_a, map_b, (c_a, c_b))
+function diagonal_element(op::OnsiteInteractionTerm, _, _, map_a, map_b, (σ, τ))
     N1, N2 = length(map_a), length(map_b)
     i = j = 1
     value = 0.0
@@ -102,9 +107,9 @@ function diagonal_element(op::OnsiteInteractionTerm, _, _, map_a, map_b, (c_a, c
         end
     end
     if isadjoint(op)
-        return conj(op.fun(c_a, c_b)) * value
+        return conj(op.fun(σ, τ)) * value
     else
-        return op.fun(c_a, c_b) * value
+        return op.fun(σ, τ) * value
     end
 end
 
@@ -130,11 +135,11 @@ function MomentumTwoBodyTerm(fun::F; fold=true) where {F}
     return MomentumTwoBodyTerm{F,T,fold,false}(fun)
 end
 function MomentumTwoBodyTerm(val::Number=1; kwargs...)
-    return MomentumTwoBodyTerm(ConstFunction(float(val)); kwargs...)
+    return MomentumTwoBodyTerm(Returns(float(val)); kwargs...)
 end
 
 LOStructure(::MomentumTwoBodyTerm) = AdjointKnown()
-_fold(::MomentumTwoBodyTerm{<:Any,<:Any,Fold}) where {Fold} = Fold
+isfold(::MomentumTwoBodyTerm{<:Any,<:Any,Fold}) where {Fold} = Fold
 isadjoint(::MomentumTwoBodyTerm{<:Any,<:Any,<:Any,Adjoint}) where {Adjoint} = Adjoint
 
 function Base.adjoint(op::MomentumTwoBodyTerm{F,T,Fold,Adjoint}) where {F,T,Fold,Adjoint}
@@ -162,7 +167,7 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
         # Folding
         r_fold = r_mode ≤ 0
         s_fold = s_mode > M
-        if !_fold(op) && (r_fold || s_fold)
+        if !isfold(op) && (r_fold || s_fold)
             return add, zero(eltype(op))
         else
             r_mode += M * r_fold
@@ -176,15 +181,15 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
                 value *= 2
             end
             if !isadjoint(op)
-                fun_value = (
-                    op.fun(comp, comp, p.mode, p.mode, r.mode, s.mode) +
-                    op.fun(comp, comp, p.mode, p.mode, s.mode, r.mode)
+                fun_value = +(
+                    op.fun(comp, comp, p.mode, p.mode, r.mode, s.mode),
+                    op.fun(comp, comp, p.mode, p.mode, s.mode, r.mode),
                 )
             else
-                fun_value = conj(
-                    op.fun(comp, comp, r.mode, s.mode, p.mode, p.mode) +
-                    op.fun(comp, comp, s.mode, r.mode, p.mode, p.mode)
-                )
+                fun_value = conj(+(
+                    op.fun(comp, comp, r.mode, s.mode, p.mode, p.mode),
+                    op.fun(comp, comp, s.mode, r.mode, p.mode, p.mode),
+                ))
             end
             return new_add, fun_value * value / 4
         end
@@ -197,7 +202,7 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
 
         # check if current selection folds. if it does, try again?
         s_mode = p.mode + mom_change
-        if !_fold(op) && !(0 < s_mode ≤ M)
+        if !isfold(op) && !(0 < s_mode ≤ M)
             return add, 0.0, 0, 0, 0
         else
             s = find_mode(add, mod1(p.mode + mom_change, M))
@@ -206,17 +211,21 @@ function get_offdiagonal(op::MomentumTwoBodyTerm, add::BoseFS, map, chosen, comp
         new_add, value = excitation(add, (s,r), (q,p))
 
         if !isadjoint(op)
-            fun_value = (
-                op.fun(comp, comp, p.mode, q.mode, r.mode, s.mode) +
-                op.fun(comp, comp, q.mode, p.mode, s.mode, r.mode)
+            fun_value = +(
+                op.fun(comp, comp, p.mode, q.mode, r.mode, s.mode),
+                op.fun(comp, comp, q.mode, p.mode, r.mode, s.mode),
+                op.fun(comp, comp, p.mode, q.mode, s.mode, r.mode),
+                op.fun(comp, comp, q.mode, p.mode, s.mode, r.mode),
             )
         else
-            fun_value = conj(
-                op.fun(comp, comp, s.mode, r.mode, q.mode, p.mode) +
-                op.fun(comp, comp, r.mode, s.mode, p.mode, q.mode)
-            )
+            fun_value = conj(+(
+                op.fun(comp, comp, s.mode, r.mode, q.mode, p.mode),
+                op.fun(comp, comp, s.mode, r.mode, p.mode, q.mode),
+                op.fun(comp, comp, r.mode, s.mode, q.mode, p.mode),
+                op.fun(comp, comp, r.mode, s.mode, p.mode, q.mode),
+            ))
         end
-        return new_add, fun_value * value / 2
+        return new_add, fun_value * value / 4
     end
 end
 
@@ -234,7 +243,7 @@ function num_offdiagonals(::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b)
     return length(map_a) * length(map_b) * (M - 1)
 end
 function get_offdiagonal(
-    op::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b, chosen, (c_a, c_b)
+    op::MomentumTwoBodyTerm, add_a, add_b, map_a, map_b, chosen, (σ, τ)
 )
     M = num_modes(add_a)
     p, remainder = fldmod1(chosen, (M - 1) * length(map_b))
@@ -250,7 +259,7 @@ function get_offdiagonal(
     q_mode = q_index.mode
     r_mode = q_mode + mom_change
 
-    if _fold(op)
+    if isfold(op)
         s_mode = mod1(s_mode, M)
         r_mode = mod1(r_mode, M) # enforce periodic boundary condition
     elseif !(0 < s_mode ≤ M) || !(0 < r_mode ≤ M)
@@ -265,13 +274,13 @@ function get_offdiagonal(
 
     if !isadjoint(op)
         fun_val = (
-            op.fun(c_a, c_b, p_mode, q_mode, r_mode, s_mode) +
-            op.fun(c_b, c_a, q_mode, p_mode, s_mode, r_mode)
+            op.fun(σ, τ, p_mode, q_mode, r_mode, s_mode) +
+            op.fun(τ, σ, q_mode, p_mode, s_mode, r_mode)
         ) / 2
     else
         fun_val = conj(
-            op.fun(c_a, c_b, s_mode, r_mode, q_mode, p_mode) +
-            op.fun(c_b, c_a, r_mode, s_mode, p_mode, q_mode)
+            op.fun(σ, τ, s_mode, r_mode, q_mode, p_mode) +
+            op.fun(τ, σ, r_mode, s_mode, p_mode, q_mode)
         ) / 2
     end
     return new_add_a, new_add_b, fun_val * val_a * val_b
@@ -311,24 +320,29 @@ function num_offdiagonals(::FullTwoBodyTerm, add::BoseFS, map)
     singlies = length(map)
     doublies = count(i -> i.occnum ≥ 2, map)
     M = num_modes(add)
-    return M * (M + 1) ÷ 2 * (doublies + singlies * (singlies - 1) ÷ 2)
+    return M * (M + 1) ÷ 2 * (doublies + (singlies * (singlies - 1)) ÷ 2)
 end
 function get_offdiagonal(op::FullTwoBodyTerm, add::BoseFS, map, chosen, comp=1)
     M = num_modes(add)
     singlies = length(map)
-    double = chosen - (singlies * (singlies - 1) ÷ 2) * M^2
+    double = chosen - (singlies * (singlies - 1)) ÷ 2 * M * (M + 1) ÷ 2
     if double > 0
         src_index, dst_index = fldmod1(double, M * (M + 1) ÷ 2)
         p, _ = pick_multiply_occupied_mode(add, map, src_index, 2)
         q = p
+        factor = 0.5
     else
-        src_index, dst_index = fldmod1(double, M * (M + 1) ÷ 2)
+        src_index, dst_index = fldmod1(chosen, M * (M + 1) ÷ 2)
         fst, snd = index_to_sorted_pair(src_index)
         p, q = (map[fst], map[snd])
+        factor = 1.0
     end
     # Subtracting 1 from s picks duplicates as well
     r_mode, s_mode = index_to_sorted_pair(dst_index)
     s_mode -= 1
+    if r_mode == s_mode
+        factor *= 0.5
+    end
     r, s = find_mode(add, (r_mode, s_mode))
     new_add, val = excitation(add, (s,r), (q,p))
 
@@ -340,16 +354,16 @@ function get_offdiagonal(op::FullTwoBodyTerm, add::BoseFS, map, chosen, comp=1)
             op.fun(comp, comp, p.mode, q.mode, s.mode, r.mode) +
             op.fun(comp, comp, q.mode, p.mode, r.mode, s.mode) +
             op.fun(comp, comp, q.mode, p.mode, s.mode, r.mode)
-        )
+        ) * factor
     else
         fun_val = conj(
             op.fun(comp, comp, s.mode, r.mode, q.mode, p.mode) +
             op.fun(comp, comp, r.mode, s.mode, q.mode, p.mode) +
             op.fun(comp, comp, s.mode, r.mode, p.mode, q.mode) +
             op.fun(comp, comp, r.mode, s.mode, p.mode, q.mode)
-        )
+        ) * factor
     end
-    return new_add, fun_val * val
+    return new_add, fun_val * val / 2
 end
 function diagonal_element(op::FullTwoBodyTerm, ::BoseFS, map, comp=1)
     return two_body_diagonal(op, map, comp)
@@ -364,7 +378,7 @@ function num_offdiagonals(::FullTwoBodyTerm, add_a, add_b, map_a, map_b)
     M = num_modes(add_a)
     return length(map_a) * length(map_b) * M * M
 end
-function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_a, c_b))
+function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (σ, τ))
     N1 = length(map_a)
     N2 = length(map_b)
     M = num_modes(add_a)
@@ -380,9 +394,15 @@ function get_offdiagonal(op::FullTwoBodyTerm, add_a, add_b, map_a, map_b, i, (c_
     if new_add_a == add_a && new_add_b == add_b
         fun_val = zero(eltype(op))
     elseif !isadjoint(op)
-        fun_val = op.fun(c_a, c_b, p_index.mode, q_index.mode, r, s)
+        fun_val = +(
+            op.fun(σ, τ, p_index.mode, q_index.mode, r, s),
+            op.fun(σ, τ, q_index.mode, p_index.mode, s, r),
+        ) / 2
     else
-        fun_val = conj(op.fun(c_a, c_b, s, r, q_index.mode, p_index.mode))
+        fun_val = +(
+            conj(op.fun(σ, τ, s, r, q_index.mode, p_index.mode)),
+            conj(op.fun(σ, τ, r, s, p_index.mode, q_index.mode)),
+        ) / 2
     end
     return new_add_a, new_add_b, fun_val * val_a * val_b
 end

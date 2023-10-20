@@ -13,43 +13,22 @@ function update_component(
     return update_component(fs, new_add_b, Val(B))
 end
 function update_component(
-    fs::CompositeFS, new_add_a, new_add_b, ::Val{A}, ::Val{B}, ::Val{C}
+    fs::CompositeFS, new_add_a, new_add_b, new_add_c, ::Val{A}, ::Val{B}, ::Val{C}
 ) where {A,B,C}
     fs = update_component(fs, new_add_a, new_add_b, Val(A), Val(B))
     return update_component(fs, new_add_c, Val(C))
-end
-
-
-"""
-    ConstFunction(x)
-
-Function that returns `x` for all arguments. Equivalent to `(args...) -> x`.
-"""
-struct ConstFunction{T}
-    value::T
-end
-(c::ConstFunction)(args...; kwargs...) = c.value
-
-function to_parameter_vector(address, t::Number)
-    C = num_components(address)
-    return SVector{C}(fill(float(t), C))
-end
-function to_parameter_vector(address, t)
-    C = num_components(address)
-    length(t) == C || throw(ArgumentError("`t` must be a $C-vector or a scalar"))
-    return SVector{C}(float.(t))
 end
 
 """
      parameter_column(add, t)
 
 Create a parameter column and check that it matches the address `add`. Returns
-`ConstFunction` if length of `t` is 1 and [`ParameterColumnFunction`](@ref) otherwise.
+`Base.Returns` if length of `t` is 1 and [`ParameterColumnFunction`](@ref) otherwise.
 """
 function parameter_column(add, t)
     C = num_components(add)
     if length(t) == 1
-        return ConstFunction(first(t))
+        return Returns(first(t))
     elseif C == length(t)
         return ParameterColumnFunction(SVector{C}(t))
     else
@@ -94,7 +73,7 @@ end
 function interaction_matrix(add, u)
     C = num_components(add)
     if length(u) == 1
-        return ConstFunction(first(u))
+        return Returns(first(u))
     elseif length(u) == C * C
         matrix = SMatrix{C, C}(u)
         issymmetric(matrix) || throw(ArgumentError("interaction matrix must be symmetric"))

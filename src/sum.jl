@@ -12,7 +12,8 @@ function OperatorSum(left::L, right::R) where {L,R}
 end
 
 Base.show(io::IO, op::OperatorSum) = print(io, op.left, " + ", op.right)
-
+num_offdiagonals(op::OperatorSum, add) = num_offdiagonals(column(op, add))
+get_offdiagonal(op::OperatorSum, add, chosen) = get_offdiagonal(column(op, add), chosen)
 
 LOStructure(op::OperatorSum) = combine_structure(LOStructure(op.left), LOStructure(op.right))
 
@@ -58,15 +59,13 @@ end
 
 num_offdiagonals(col::OperatorSumColumn) = col.n_left + col.n_right
 function get_offdiagonal(col::OperatorSumColumn, chosen)
-    orig_chosen = chosen
     if chosen ≤ col.n_left
         return get_offdiagonal(col.left, chosen)
     elseif chosen ≤ col.n_left + col.n_right
-        chosen -= col.n_left
-        return get_offdiagonal(col.right, chosen)
+        return get_offdiagonal(col.right, chosen - col.n_left)
     else
         # TODO removing this throw makes things faster. Hide it under @boundscheck?
-        throw(BoundsError(col, orig_chosen))
+        throw(BoundsError(col, chosen))
     end
 end
 
